@@ -3,6 +3,8 @@
 package com.example.smarttodo
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
@@ -47,10 +49,16 @@ fun ProfileScreen(
             Modifier
                 .fillMaxSize()
                 .padding(pad)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            Spacer(Modifier.height(8.dp))
+            
             // 상단 프로필 영역
             Card(
-                shape = MaterialTheme.shapes.extraLarge
+                shape = MaterialTheme.shapes.extraLarge,
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
                 Column(
                     Modifier
@@ -63,7 +71,7 @@ fun ProfileScreen(
                     Surface(
                         shape = MaterialTheme.shapes.extraLarge,
                         color = MaterialTheme.colorScheme.primary,
-                        tonalElevation = 2.dp
+                        shadowElevation = 2.dp
                     ) {
                         Box(Modifier.size(88.dp), contentAlignment = Alignment.Center) {
                             Text(
@@ -80,12 +88,18 @@ fun ProfileScreen(
             }
 
             // 활동 통계 4칸
-            Card(Modifier.padding(top = 12.dp), shape = MaterialTheme.shapes.extraLarge) {
+            Card(
+                shape = MaterialTheme.shapes.extraLarge,
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
                 StatGrid(total = total, done = done, todayAdd = todayAdd, week = thisWeek)
             }
 
             // 완료율
-            Card(Modifier.padding(top = 12.dp), shape = MaterialTheme.shapes.extraLarge) {
+            Card(
+                shape = MaterialTheme.shapes.extraLarge,
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
                 Column(Modifier.fillMaxWidth().padding(16.dp)) {
                     Text("완료율", style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(8.dp))
@@ -102,7 +116,10 @@ fun ProfileScreen(
             }
 
             // 주요 카테고리
-            Card(Modifier.padding(top = 12.dp), shape = MaterialTheme.shapes.extraLarge) {
+            Card(
+                shape = MaterialTheme.shapes.extraLarge,
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
                 Column(
                     Modifier.fillMaxWidth().padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -130,7 +147,10 @@ fun ProfileScreen(
             }
 
             // 업적(샘플)
-            Card(Modifier.padding(top = 12.dp), shape = MaterialTheme.shapes.extraLarge) {
+            Card(
+                shape = MaterialTheme.shapes.extraLarge,
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("업적", style = MaterialTheme.typography.titleMedium)
@@ -145,7 +165,10 @@ fun ProfileScreen(
             }
 
             // 연속 기록(샘플)
-            Card(Modifier.padding(16.dp), shape = MaterialTheme.shapes.extraLarge) {
+            Card(
+                shape = MaterialTheme.shapes.extraLarge,
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
                 Column(
                     Modifier.fillMaxWidth().padding(16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
@@ -195,31 +218,77 @@ private fun StatGrid(total: Int, done: Int, todayAdd: Int, week: Int) {
 
 @Composable
 private fun SmallStatCard(title: String, value: Int, modifier: Modifier = Modifier) {
-    Surface(
+    Card(
         modifier = modifier,
-        shape = MaterialTheme.shapes.extraLarge,
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+        shape = MaterialTheme.shapes.large,
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.White
+        )
     ) {
         Column(
-            Modifier.fillMaxWidth().padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+            Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(title, color = Color.Gray)
-            Text("$value", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
+            Text(
+                title,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                "$value",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
         }
     }
 }
 
 @Composable
 private fun AchievementRow(title: String, achieved: Boolean) {
-    val bg = if (achieved) MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
-    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
-    Surface(shape = MaterialTheme.shapes.large, color = bg) {
-        Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(title, modifier = Modifier.weight(1f))
+    val bg = if (achieved) {
+        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+    }
+    Surface(
+        shape = MaterialTheme.shapes.large,
+        color = bg,
+        shadowElevation = if (achieved) 1.dp else 0.dp
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Text(
-                if (achieved) "달성" else "미달성",
-                color = if (achieved) MaterialTheme.colorScheme.primary else Color.Gray
+                title,
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium
+            )
+            AssistChip(
+                onClick = {},
+                label = {
+                    Text(
+                        if (achieved) "달성" else "미달성",
+                        fontWeight = FontWeight.SemiBold
+                    )
+                },
+                colors = AssistChipDefaults.assistChipColors(
+                    containerColor = if (achieved) {
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                    } else {
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    },
+                    labelColor = if (achieved) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    }
+                )
             )
         }
     }

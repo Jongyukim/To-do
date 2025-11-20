@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForwardIos
-import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
@@ -24,7 +23,6 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onOpenProfile: () -> Unit
 ) {
-    var darkMode by remember { mutableStateOf(false) }
     var pushEnabled by remember { mutableStateOf(true) }
 
     Scaffold(
@@ -48,60 +46,110 @@ fun SettingsScreen(
         ) {
             // 계정
             SectionHeader("계정")
-            Card(shape = MaterialTheme.shapes.extraLarge) {
+            Card(
+                shape = MaterialTheme.shapes.extraLarge,
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
                 ListItem(
                     leadingContent = {
-                        Icon(Icons.Filled.Person, null, tint = MaterialTheme.colorScheme.primary)
+                        Surface(
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                            shape = MaterialTheme.shapes.medium
+                        ) {
+                            Box(Modifier.padding(8.dp)) {
+                                Icon(
+                                    Icons.Filled.Person,
+                                    null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        }
                     },
-                    headlineContent = { Text("프로필 보기", fontWeight = FontWeight.SemiBold) },
-                    supportingContent = { Text("활동 통계 및 일정 확인") },
-                    trailingContent = { Icon(Icons.Filled.ArrowForwardIos, null) },
+                    headlineContent = {
+                        Text(
+                            "프로필 보기",
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                    },
+                    supportingContent = {
+                        Text(
+                            "활동 통계 및 일정 확인",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    },
+                    trailingContent = {
+                        Icon(
+                            Icons.Filled.ArrowForwardIos,
+                            null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    },
                     modifier = Modifier.clickable(onClick = onOpenProfile)
                 )
             }
 
-            // 모양
-            SectionHeader("모양")
-            Card(shape = MaterialTheme.shapes.extraLarge) {
-                Row(
-                    Modifier.fillMaxWidth().padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Filled.DarkMode, null, tint = MaterialTheme.colorScheme.primary)
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("다크 모드", fontWeight = FontWeight.SemiBold)
-                        Text("어두운 테마 사용", color = Color.Gray)
-                    }
-                    Switch(checked = darkMode, onCheckedChange = { darkMode = it })
-                }
-            }
-
             // 알림
             SectionHeader("알림")
-            Card(shape = MaterialTheme.shapes.extraLarge) {
+            Card(
+                shape = MaterialTheme.shapes.extraLarge,
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
                 Row(
-                    Modifier.fillMaxWidth().padding(16.dp),
+                    Modifier.fillMaxWidth().padding(18.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Filled.Notifications, null, tint = MaterialTheme.colorScheme.primary)
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("푸시 알림", fontWeight = FontWeight.SemiBold)
-                        Text("할 일 알림 받기", color = Color.Gray)
+                    Surface(
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                        shape = MaterialTheme.shapes.medium
+                    ) {
+                        Box(Modifier.padding(8.dp)) {
+                            Icon(
+                                Icons.Filled.Notifications,
+                                null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
                     }
-                    Switch(checked = pushEnabled, onCheckedChange = { pushEnabled = it })
+                    Spacer(Modifier.width(16.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            "푸시 알림",
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Text(
+                            "할 일 알림 받기",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = pushEnabled,
+                        onCheckedChange = { pushEnabled = it },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = MaterialTheme.colorScheme.primary,
+                            checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
+                        )
+                    )
                 }
             }
 
             // 앱 정보
             SectionHeader("앱 정보")
-            Card(shape = MaterialTheme.shapes.extraLarge) {
+            Card(
+                shape = MaterialTheme.shapes.extraLarge,
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
                 Column(Modifier.fillMaxWidth()) {
                     SettingLinkRow("앱 버전", "1.0.0")
-                    Divider()
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     SettingLinkRow("개인정보 처리방침")
-                    Divider()
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                     SettingLinkRow("이용 약관")
                 }
             }
@@ -138,8 +186,29 @@ private fun SectionHeader(title: String) {
 @Composable
 private fun SettingLinkRow(title: String, subtitle: String? = null) {
     ListItem(
-        headlineContent = { Text(title) },
-        supportingContent = { if (subtitle != null) Text(subtitle, color = Color.Gray) },
-        trailingContent = { Icon(Icons.Filled.ArrowForwardIos, null) }
+        headlineContent = {
+            Text(
+                title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium
+            )
+        },
+        supportingContent = {
+            if (subtitle != null) {
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
+        trailingContent = {
+            Icon(
+                Icons.Filled.ArrowForwardIos,
+                null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(16.dp)
+            )
+        }
     )
 }

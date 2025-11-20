@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -60,10 +61,22 @@ fun HomeScreen(
         matchQuery && matchFilter
     }
 
-    Scaffold(
-        topBar = { TopAppBar(title = { Text("스마트 To-Do") }) },
+        Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("스마트 To-Do", fontWeight = FontWeight.Bold) },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface
+                )
+            )
+        },
         floatingActionButton = {
-            FloatingActionButton(onClick = { editing = null; showEditor = true }) {
+            FloatingActionButton(
+                onClick = { editing = null; showEditor = true },
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            ) {
                 Icon(Icons.Filled.Add, contentDescription = "추가")
             }
         },
@@ -172,7 +185,7 @@ private fun TodoRow(
 
     Surface(
         color = container,
-        tonalElevation = if (todo.done) 0.dp else 1.dp
+        shadowElevation = if (todo.done) 0.dp else 1.dp
     ) {
         ListItem(
             leadingContent = {
@@ -244,23 +257,26 @@ private fun TodoRow(
 
 @Composable
 private fun KPISection(totalToday: Int, activeCount: Int, doneRate: Int) {
-    Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         KPIBadge(
             title = "오늘",
             value = totalToday.toString(),
-            color = Color(0xFF6C63FF),
+            color = Color(0xFF6366F1), // Primary와 일치
+            icon = Icons.Filled.CalendarMonth,
             modifier = Modifier.weight(1f)
         )
         KPIBadge(
             title = "진행",
             value = activeCount.toString(),
-            color = Color(0xFF26A69A),
+            color = Color(0xFF10B981), // Secondary와 일치
+            icon = Icons.Filled.Assessment,
             modifier = Modifier.weight(1f)
         )
         KPIBadge(
             title = "완료율",
             value = "$doneRate%",
-            color = Color(0xFFF1A33B),
+            color = Color(0xFFF59E0B), // Tertiary와 일치
+            icon = Icons.Filled.Assessment,
             modifier = Modifier.weight(1f)
         )
     }
@@ -271,17 +287,49 @@ private fun KPIBadge(
     title: String,
     value: String,
     color: Color,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
     modifier: Modifier = Modifier
 ) {
-    Column(
-        modifier = modifier
-            .clip(MaterialTheme.shapes.large)
-            .background(color.copy(alpha = 0.12f))
-            .padding(14.dp)
+    Card(
+        modifier = modifier,
+        shape = MaterialTheme.shapes.large,
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.White
+        )
     ) {
-        Text(title, color = color, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(6.dp))
-        Text(value, style = MaterialTheme.typography.headlineSmall, color = color)
+        Column(
+            modifier = Modifier.padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Surface(
+                shape = MaterialTheme.shapes.medium,
+                color = color.copy(alpha = 0.15f),
+                modifier = Modifier.size(48.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        icon,
+                        contentDescription = null,
+                        tint = color,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+            }
+            Text(
+                value,
+                style = MaterialTheme.typography.headlineLarge,
+                color = color,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                title,
+                style = MaterialTheme.typography.labelMedium,
+                color = color.copy(alpha = 0.8f),
+                fontWeight = FontWeight.Medium
+            )
+        }
     }
 }
 
@@ -292,28 +340,62 @@ private fun QuickActions(
     onAlarm: () -> Unit,
     onProfile: () -> Unit
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.surface,
+        shadowElevation = 2.dp
     ) {
-        ActionIcon("카테고리", Icons.Filled.Category, onCategory)
-        ActionIcon("캘린더", Icons.Filled.CalendarMonth, onCalendar)
-        ActionIcon("알림", Icons.Filled.Assessment, onAlarm)
-        ActionIcon("프로필", Icons.Filled.Settings, onProfile)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 12.dp, horizontal = 8.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            ActionIcon("카테고리", Icons.Filled.Category, onCategory, Color(0xFF6366F1))
+            ActionIcon("캘린더", Icons.Filled.CalendarMonth, onCalendar, Color(0xFF10B981))
+            ActionIcon("알림", Icons.Filled.Notifications, onAlarm, Color(0xFFF59E0B))
+            ActionIcon("프로필", Icons.Filled.Settings, onProfile, Color(0xFF8B5CF6))
+        }
     }
-    Spacer(Modifier.height(12.dp))
+    Spacer(Modifier.height(16.dp))
 }
 
 @Composable
 private fun ActionIcon(
     label: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    iconColor: Color
 ) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        FilledTonalIconButton(onClick = onClick) { Icon(icon, contentDescription = label) }
-        Spacer(Modifier.height(6.dp))
-        Text(label, style = MaterialTheme.typography.labelMedium)
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.padding(horizontal = 4.dp)
+    ) {
+        Surface(
+            onClick = onClick,
+            shape = MaterialTheme.shapes.large,
+            color = iconColor.copy(alpha = 0.1f),
+            modifier = Modifier.size(56.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    icon,
+                    contentDescription = label,
+                    tint = iconColor,
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+            fontWeight = FontWeight.Medium
+        )
     }
 }
 
@@ -343,13 +425,37 @@ private fun chipColors(sel: Boolean) =
 @Composable
 private fun EmptyState() {
     Column(
-        Modifier.fillMaxWidth().padding(vertical = 48.dp),
+        Modifier.fillMaxWidth().padding(vertical = 64.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Surface(Modifier.size(88.dp), shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.surfaceVariant) {}
-        Spacer(Modifier.height(12.dp))
-        Text("할 일이 없습니다", fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(4.dp))
-        Text("새로운 할 일을 추가해보세요", color = Color.Gray, textAlign = TextAlign.Center)
+        Surface(
+            modifier = Modifier.size(96.dp),
+            shape = MaterialTheme.shapes.extraLarge,
+            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+            shadowElevation = 0.dp
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    Icons.Filled.Add,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                    modifier = Modifier.size(48.dp)
+                )
+            }
+        }
+        Spacer(Modifier.height(20.dp))
+        Text(
+            "할 일이 없습니다",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "새로운 할 일을 추가해보세요",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
+        )
     }
 }

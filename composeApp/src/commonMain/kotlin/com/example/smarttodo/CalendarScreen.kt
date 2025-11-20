@@ -82,7 +82,7 @@ fun CalendarScreen(
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp),
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 listOf("일","월","화","수","목","금","토").forEach {
@@ -90,7 +90,9 @@ fun CalendarScreen(
                         it,
                         modifier = Modifier.width(40.dp),
                         textAlign = TextAlign.Center,
-                        color = Color.Gray
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
             }
@@ -175,36 +177,49 @@ private fun DayCell(
     hasTodos: Boolean,
     onClick: () -> Unit
 ) {
-    val size = 40.dp
-    Box(
+    val size = 48.dp
+    Surface(
         modifier = Modifier
             .width(size)
-            .height(size)
-            .clip(MaterialTheme.shapes.large)
-            .background(
-                when {
-                    isSelected -> MaterialTheme.colorScheme.primary
-                    else -> Color.Transparent
-                }
-            )
-            .clickable(enabled = day != null, onClick = onClick),
-        contentAlignment = Alignment.Center
+            .height(size),
+        shape = MaterialTheme.shapes.medium,
+        color = when {
+            isSelected -> MaterialTheme.colorScheme.primary
+            isToday -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+            else -> Color.Transparent
+        },
+        onClick = { if (day != null) onClick() },
+        enabled = day != null
     ) {
-        if (day != null) {
-            Text(
-                text = day.dayOfMonth.toString(),
-                color = if (isSelected) Color.White else Color.Unspecified,
-                fontWeight = if (isToday && !isSelected) FontWeight.SemiBold else FontWeight.Normal
-            )
-            if (hasTodos) {
-                Box(
-                    Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 4.dp)
-                        .size(6.dp)
-                        .clip(MaterialTheme.shapes.small)
-                        .background(if (isSelected) Color.White else MaterialTheme.colorScheme.primary)
-                )
+        Box(contentAlignment = Alignment.Center) {
+            if (day != null) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = day.dayOfMonth.toString(),
+                        color = when {
+                            isSelected -> MaterialTheme.colorScheme.onPrimary
+                            isToday -> MaterialTheme.colorScheme.primary
+                            else -> MaterialTheme.colorScheme.onSurface
+                        },
+                        fontWeight = if (isToday || isSelected) FontWeight.Bold else FontWeight.Normal,
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                    if (hasTodos) {
+                        Spacer(Modifier.height(2.dp))
+                        Box(
+                            Modifier
+                                .size(4.dp)
+                                .clip(MaterialTheme.shapes.small)
+                                .background(
+                                    if (isSelected) MaterialTheme.colorScheme.onPrimary
+                                    else MaterialTheme.colorScheme.primary
+                                )
+                        )
+                    }
+                }
             }
         }
     }
@@ -215,16 +230,48 @@ private fun TodoCardCompact(todo: Todo) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
-        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.06f),
-        tonalElevation = 0.dp
+        color = if (todo.done) {
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+        } else {
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
+        },
+        shadowElevation = 1.dp
     ) {
         ListItem(
-            leadingContent = { Checkbox(checked = todo.done, onCheckedChange = { /* read-only */ }) },
-            headlineContent = { Text(todo.title, fontWeight = FontWeight.SemiBold) },
+            leadingContent = {
+                Checkbox(
+                    checked = todo.done,
+                    onCheckedChange = { /* read-only */ },
+                    colors = CheckboxDefaults.colors(
+                        checkedColor = MaterialTheme.colorScheme.primary
+                    )
+                )
+            },
+            headlineContent = {
+                Text(
+                    todo.title,
+                    fontWeight = if (todo.done) FontWeight.Normal else FontWeight.SemiBold,
+                    style = MaterialTheme.typography.bodyLarge
+                )
+            },
             supportingContent = {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    AssistChip(onClick = {}, label = { Text(todo.category.name) })
-                    AssistChip(onClick = {}, label = { Text(todo.due?.toString() ?: "마감 없음") })
+                    AssistChip(
+                        onClick = {},
+                        label = { Text(todo.category.name, fontWeight = FontWeight.Medium) },
+                        colors = AssistChipDefaults.assistChipColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
+                            labelColor = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    )
+                    AssistChip(
+                        onClick = {},
+                        label = { Text(todo.due?.toString() ?: "마감 없음", fontWeight = FontWeight.Medium) },
+                        colors = AssistChipDefaults.assistChipColors(
+                            containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f),
+                            labelColor = MaterialTheme.colorScheme.onTertiaryContainer
+                        )
+                    )
                 }
             }
         )

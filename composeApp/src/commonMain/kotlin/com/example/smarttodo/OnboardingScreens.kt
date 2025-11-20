@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
@@ -41,9 +42,10 @@ fun OnboardingScreens(
             IntroPage(
                 icon = {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Filled.List, // deprec 대체
+                        imageVector = Icons.AutoMirrored.Filled.List,
                         contentDescription = null,
-                        tint = Color.White
+                        tint = Color.White,
+                        modifier = Modifier.fillMaxSize()
                     )
                 },
                 badgeColor = Color(0xFF6C63FF),
@@ -55,7 +57,8 @@ fun OnboardingScreens(
                     Icon(
                         imageVector = Icons.Filled.Notifications,
                         contentDescription = null,
-                        tint = Color.White
+                        tint = Color.White,
+                        modifier = Modifier.fillMaxSize()
                     )
                 },
                 badgeColor = Color(0xFF58B6A9),
@@ -67,7 +70,8 @@ fun OnboardingScreens(
                     Icon(
                         imageVector = Icons.Filled.Assessment,
                         contentDescription = null,
-                        tint = Color.White
+                        tint = Color.White,
+                        modifier = Modifier.fillMaxSize()
                     )
                 },
                 badgeColor = Color(0xFFF1A33B),
@@ -130,24 +134,44 @@ private fun IntroPageView(page: IntroPage) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.SpaceEvenly
     ) {
-        // 상단 아이콘 배지
+        Spacer(Modifier.height(40.dp))
+        
+        // 상단 아이콘 배지 - 사각형 박스
         Box(
             modifier = Modifier
-                .size(120.dp)
-                .clip(MaterialTheme.shapes.extraLarge)
+                .size(160.dp, 160.dp)
+                .clip(MaterialTheme.shapes.large)
                 .background(page.badgeColor),
             contentAlignment = Alignment.Center
         ) {
-            Box(Modifier.size(56.dp)) { page.icon() }
+            Box(Modifier.size(80.dp)) {
+                page.icon()
+            }
         }
 
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(page.title, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.height(8.dp))
-            Text(page.subtitle, fontSize = 14.sp, color = Color.Gray, lineHeight = 20.sp)
+        Spacer(Modifier.height(32.dp))
+
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(horizontal = 32.dp)
+        ) {
+            Text(
+                page.title, 
+                fontSize = 24.sp, 
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(Modifier.height(12.dp))
+            Text(
+                page.subtitle, 
+                fontSize = 16.sp, 
+                color = MaterialTheme.colorScheme.onSurfaceVariant, 
+                lineHeight = 24.sp,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
         }
 
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(40.dp))
     }
 }
 

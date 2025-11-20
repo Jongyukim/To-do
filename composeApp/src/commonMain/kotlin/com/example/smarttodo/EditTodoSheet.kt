@@ -9,7 +9,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.datetime.LocalDate
 
@@ -63,19 +65,48 @@ fun EditTodoSheet(
             // 알림 섹션 (UI만)
             Card(
                 colors = CardDefaults.cardColors(
-                    containerColor = if (remind) MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
-                    else MaterialTheme.colorScheme.surfaceVariant
-                )
+                    containerColor = if (remind) {
+                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                    } else {
+                        MaterialTheme.colorScheme.surfaceVariant
+                    }
+                ),
+                shape = MaterialTheme.shapes.large,
+                elevation = CardDefaults.cardElevation(defaultElevation = if (remind) 1.dp else 0.dp)
             ) {
-                Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("알림 설정")
-                        Switch(checked = remind, onCheckedChange = { remind = it })
+                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "알림 설정",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Switch(
+                            checked = remind,
+                            onCheckedChange = { remind = it },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = MaterialTheme.colorScheme.primary,
+                                checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
+                            )
+                        )
                     }
                     if (remind) {
+                        var timeError by remember { mutableStateOf<String?>(null) }
                         OutlinedTextField(
-                            value = remindTime, onValueChange = { remindTime = it },
-                            label = { Text("알림 시간 (HH:mm)") }, singleLine = true, modifier = Modifier.fillMaxWidth()
+                            value = remindTime,
+                            onValueChange = { 
+                                remindTime = it
+                                // 시간 형식 검증 (HH:mm)
+                                timeError = if (it.isNotBlank() && !it.matches(Regex("^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$"))) {
+                                    "올바른 시간 형식이 아닙니다 (예: 09:30)"
+                                } else null
+                            },
+                            label = { Text("알림 시간 (HH:mm)") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("예: 09:30") },
+                            isError = timeError != null,
+                            supportingText = timeError?.let { { Text(it) } }
                         )
                     }
                 }
@@ -90,14 +121,23 @@ fun EditTodoSheet(
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 TextButton(onClick = onDismiss) { Text("취소") }
                 Spacer(Modifier.width(8.dp))
-                val enable = title.isNotBlank()
+                val timeValid = !remind || remindTime.isBlank() || remindTime.matches(Regex("^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$"))
+                val enable = title.isNotBlank() && timeValid
                 Button(
                     enabled = enable,
                     onClick = {
-                        val due = dueText.takeIf { it.isNotBlank() }?.let { LocalDate.parse(it) }
+                        val due = dueText.takeIf { it.isNotBlank() }?.let { 
+                            try {
+                                LocalDate.parse(it)
+                            } catch (e: Exception) {
+                                null
+                            }
+                        }
+                        // 알림이 켜져있으면 기본 시간 설정 (09:00)
+                        val finalRemindTime = if (remind && remindTime.isBlank()) "09:00" else remindTime.ifBlank { null }
                         val base = initial ?: Todo(
                             id = randomId(), title = title.trim(), category = category,
-                            due = due, remind = remind, remindTime = remindTime.ifBlank { null },
+                            due = due, remind = remind, remindTime = finalRemindTime,
                             memo = memo.trim(), done = false
                         )
                         val edited = if (initial != null) {
@@ -106,7 +146,7 @@ fun EditTodoSheet(
                                 category = category,
                                 due = due,
                                 remind = remind,
-                                remindTime = remindTime.ifBlank { null },
+                                remindTime = finalRemindTime,
                                 memo = memo.trim()
                             )
                         } else base
