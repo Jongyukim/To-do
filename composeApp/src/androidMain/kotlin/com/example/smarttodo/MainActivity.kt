@@ -7,12 +7,17 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.Preview
+import com.google.firebase.Firebase
+import com.google.firebase.initialize
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        
+
+// 🔥 1. Firebase 초기화 (다른 서비스 초기화 전에 실행)
+        Firebase.initialize(this)
+
         // NotificationManager 초기화
         initNotificationManager(this)
         

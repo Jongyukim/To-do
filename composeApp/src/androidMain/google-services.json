@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "175429789626",
+    "project_id": "to-do-b9715",
+    "storage_bucket": "to-do-b9715.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:175429789626:android:88066cfab6dbd6c103df83",
+        "android_client_info": {
+          "package_name": "com.example.smarttodo"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCmiYCH-PkIoKMaEeqO7X6lOcRRh1bIHP0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
