@@ -8,7 +8,7 @@
         alias(libs.plugins.composeCompiler)
         alias(libs.plugins.composeHotReload)
 
-        id("com.google.gms.google-services") version "4.4.0" apply false
+        id("com.google.gms.google-services")
     }
 
     kotlin {
@@ -60,6 +60,7 @@
             jvmMain.dependencies {
                 implementation(compose.desktop.currentOs)
                 implementation(libs.kotlinx.coroutinesSwing)
+
             }
 
         }

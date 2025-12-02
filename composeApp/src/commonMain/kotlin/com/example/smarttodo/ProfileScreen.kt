@@ -19,12 +19,12 @@ import kotlinx.datetime.*
 @Composable
 fun ProfileScreen(
     store: TodoStore,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    authManager: AuthManager
 ) {
-    // 데모용 사용자 정보(추후 실제 계정 모델로 대체)
-    val userName = "김철수"
-    val email = "chulsoo@example.com"
-    val joined = LocalDate(2025, 10, 1)
+    val userName = authManager.getCurrentUserDisplayName() ?: "User"
+    val email = authManager.getCurrentUserEmail() ?: "N/A"
+    // val joined = LocalDate(2025, 10, 1) // Firebase Auth에서는 가입일 직접 제공 안 함, 필요 시 Firestore에 저장
 
     val items = store.items
     val total = items.size
@@ -75,7 +75,7 @@ fun ProfileScreen(
                     ) {
                         Box(Modifier.size(88.dp), contentAlignment = Alignment.Center) {
                             Text(
-                                userName.first().toString(),
+                                userName.firstOrNull()?.toString() ?: "U",
                                 color = Color.White,
                                 style = MaterialTheme.typography.headlineLarge
                             )
@@ -83,7 +83,7 @@ fun ProfileScreen(
                     }
                     Text(userName, fontWeight = FontWeight.SemiBold)
                     Text(email, color = Color.Gray)
-                    AssistChip(onClick = {}, label = { Text("가입일: ${joined.year}년 ${joined.monthNumber}월") })
+                    // AssistChip(onClick = {}, label = { Text("가입일: ${joined.year}년 ${joined.monthNumber}월") })
                 }
             }
 

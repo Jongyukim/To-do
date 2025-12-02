@@ -28,12 +28,54 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
-import jdk.internal.vm.vector.VectorSupport.store
+import com.example.smarttodo.data.FirebaseRepository
+import com.example.smarttodo.data.FirestoreTodo
+import kotlinx.coroutines.launch
 import kotlinx.datetime.*
+import java.util.UUID
+
+// Extension function for String to LocalDate conversion
+private fun String.toLocalDate(): LocalDate {
+    return LocalDate.parse(this)
+}
+
+// Mapper functions to convert between UI model and Firestore model
+private fun Todo.toFirestoreTodo(): FirestoreTodo {
+    return FirestoreTodo(
+        id = this.id,
+        title = this.title,
+        category = this.category.name,
+        due = this.due?.toString(),
+        remind = this.remind,
+        remindTime = this.remindTime,
+        memo = this.memo,
+        done = this.done
+    )
+}
+
+private fun FirestoreTodo.toTodo(): Todo {
+    // Handle potential errors if a string value from Firestore doesn't match the enum
+    val category = try {
+        TodoCategory.valueOf(this.category)
+    } catch (e: IllegalArgumentException) {
+        TodoCategory.개인 // Default to 'Personal' category on error
+    }
+    return Todo(
+        id = this.id,
+        title = this.title,
+        category = category,
+        due = this.due?.toLocalDate(),
+        remind = this.remind,
+        remindTime = this.remindTime,
+        memo = this.memo,
+        done = this.done
+    )
+}
+
 
 @Composable
 fun HomeScreen(
-    store: TodoStore,
+    repository: FirebaseRepository,
     onOpenCategory: () -> Unit = {},
     onOpenCalendar: () -> Unit = {},
     onOpenAlarm: () -> Unit = {},
@@ -49,8 +91,24 @@ fun HomeScreen(
     var query by remember { mutableStateOf("") }
     var filter by remember { mutableStateOf(Filter.All) }
 
+    // State for holding todos fetched from Firebase
+    var allTodos by remember { mutableStateOf<List<Todo>>(emptyList()) }
+    val coroutineScope = rememberCoroutineScope()
+
+    // Function to refresh the todo list from Firestore
+    val refreshTodos = {
+        coroutineScope.launch {
+            allTodos = repository.getAllTodos().map { it.toTodo() }
+        }
+    }
+
+    // Fetch initial data
+    LaunchedEffect(Unit) {
+        refreshTodos()
+    }
+
     val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
-    val filtered = store.items.filter {
+    val filtered = allTodos.filter {
         val matchQuery = query.isBlank() || it.title.contains(query, true)
         val matchFilter = when (filter) {
             Filter.All -> true
@@ -110,9 +168,9 @@ fun HomeScreen(
             // KPI
             item {
                 KPISection(
-                    totalToday = store.items.count { it.due == today },
-                    activeCount = store.items.count { !it.done },
-                    doneRate = store.items.let { if (it.isEmpty()) 0 else (it.count { t -> t.done } * 100 / it.size) }
+                    totalToday = allTodos.count { it.due == today },
+                    activeCount = allTodos.count { !it.done },
+                    doneRate = allTodos.let { if (it.isEmpty()) 0 else (it.count { t -> t.done } * 100 / it.size) }
                 )
             }
 
@@ -146,9 +204,20 @@ fun HomeScreen(
                 items(filtered, key = { it.id }) { todo ->
                     TodoRow(
                         todo = todo,
-                        onToggle = { store.toggleDone(todo.id) },
+                        onToggle = {
+                            coroutineScope.launch {
+                                val updatedTodo = todo.copy(done = !todo.done)
+                                repository.updateTodo(updatedTodo.toFirestoreTodo())
+                                refreshTodos()
+                            }
+                        },
                         onEdit = { editing = todo; showEditor = true },
-                        onDelete = { store.remove(todo.id) }
+                        onDelete = {
+                            coroutineScope.launch {
+                                repository.deleteTodo(todo.id)
+                                refreshTodos()
+                            }
+                        }
                     )
                     HorizontalDivider()
                 }
@@ -161,8 +230,18 @@ fun HomeScreen(
             initial = editing,
             onDismiss = { showEditor = false },
             onSubmit = { t ->
-                if (editing == null) store.add(t) else store.update(t.id) { _ -> t }
-                showEditor = false
+                coroutineScope.launch {
+                     if (editing == null) {
+                        // For new items, ensure ID is set
+                        val newTodo = if(t.id.isBlank()) t.copy(id = UUID.randomUUID().toString()) else t
+                        repository.addTodo(newTodo.toFirestoreTodo())
+                    } else {
+                        // For existing items, just update
+                        repository.updateTodo(t.toFirestoreTodo())
+                    }
+                    showEditor = false
+                    refreshTodos()
+                }
             }
         )
     }

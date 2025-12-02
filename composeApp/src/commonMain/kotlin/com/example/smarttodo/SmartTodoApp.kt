@@ -5,11 +5,13 @@ package com.example.smarttodo
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
+import com.example.smarttodo.data.FirebaseRepository
+import com.example.smarttodo.data.getFirebaseRepository
 
 @Composable
 fun SmartTodoApp() {
     var screen by remember { mutableStateOf<Screen>(Screen.Onboarding) }
-    val notificationManager = remember { 
+    val notificationManager = remember {
         try {
             getNotificationManager()
         } catch (e: Exception) {
@@ -17,6 +19,15 @@ fun SmartTodoApp() {
         }
     }
     val store = remember { TodoStore(notificationManager) }
+    val firebaseRepository = remember { getFirebaseRepository() }
+    val authManager = remember { getAuthManager() } // AuthManager 인스턴스 생성
+
+    // 앱 시작 시 로그인 상태 확인
+    LaunchedEffect(Unit) {
+        if (authManager.isLoggedIn()) {
+            screen = Screen.Home
+        }
+    }
 
     // 모던하고 일관된 색상 팔레트
     val customColorScheme = lightColorScheme(
@@ -45,11 +56,14 @@ fun SmartTodoApp() {
             )
 
             Screen.Auth -> AuthScreen(
-                onAuthenticated = { screen = Screen.Home }, onForgotPassword = {}
+                onLogin = { email, password -> authManager.login(email, password) },
+                onRegister = { email, password, displayName -> authManager.register(email, password, displayName) },
+                onAuthenticationSuccess = { screen = Screen.Home },
+                onForgotPassword = {}
             )
 
             Screen.Home -> HomeScreen(
-                store = store,
+                repository = firebaseRepository,
                 onOpenCategory = { screen = Screen.Category },
                 onOpenCalendar = { screen = Screen.Calendar },
                 onOpenAlarm = { screen = Screen.Notifications },
@@ -72,12 +86,17 @@ fun SmartTodoApp() {
 
             Screen.Settings -> SettingsScreen(
                 onBack = { screen = Screen.Home },
-                onOpenProfile = { screen = Screen.Profile }
+                onOpenProfile = { screen = Screen.Profile },
+                onLogout = {
+                    authManager.signOut()
+                    screen = Screen.Auth
+                }
             )
 
             Screen.Profile -> ProfileScreen(
                 store = store,
-                onBack = { screen = Screen.Settings }
+                onBack = { screen = Screen.Settings },
+                authManager = authManager
             )
         }
     }

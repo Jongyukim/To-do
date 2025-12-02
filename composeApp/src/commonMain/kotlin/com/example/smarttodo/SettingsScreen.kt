@@ -21,7 +21,8 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
-    onOpenProfile: () -> Unit
+    onOpenProfile: () -> Unit,
+    onLogout: () -> Unit
 ) {
     var pushEnabled by remember { mutableStateOf(true) }
 
@@ -157,7 +158,7 @@ fun SettingsScreen(
             // 계정 - 로그아웃
             SectionHeader("계정")
             OutlinedButton(
-                onClick = { /* TODO: 로그아웃 */ },
+                onClick = onLogout,
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.outlinedButtonColors(
                     contentColor = MaterialTheme.colorScheme.error
