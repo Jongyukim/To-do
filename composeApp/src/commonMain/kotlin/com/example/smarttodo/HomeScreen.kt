@@ -25,25 +25,85 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.smarttodo.data.FirebaseRepository
+import com.example.smarttodo.data.FirestoreTodo
+import kotlinx.coroutines.launch
+import kotlinx.datetime.*
+import java.util.UUID
+
+// Extension function for String to LocalDate conversion
+private fun String.toLocalDate(): LocalDate {
+    return LocalDate.parse(this)
+}
+
+// Mapper functions to convert between UI model and Firestore model
+private fun Todo.toFirestoreTodo(): FirestoreTodo {
+    return FirestoreTodo(
+        id = this.id,
+        title = this.title,
+        category = this.category.name,
+        due = this.due?.toString(),
+        remind = this.remind,
+        remindTime = this.remindTime,
+        memo = this.memo,
+        done = this.done
+    )
+}
+
+private fun FirestoreTodo.toTodo(): Todo {
+    // Handle potential errors if a string value from Firestore doesn't match the enum
+    val category = try {
+        TodoCategory.valueOf(this.category)
+    } catch (e: IllegalArgumentException) {
+        TodoCategory.개인 // Default to 'Personal' category on error
+    }
+    return Todo(
+        id = this.id,
+        title = this.title,
+        category = category,
+        due = this.due?.toLocalDate(),
+        remind = this.remind,
+        remindTime = this.remindTime,
+        memo = this.memo,
+        done = this.done
+    )
+}
+
 
 @Composable
 fun HomeScreen(
-    store: TodoStore,
-    onOpenCategory: () -> Unit,
-    onOpenCalendar: () -> Unit,
-    onOpenAlarm: () -> Unit,
-    onOpenStats: () -> Unit,
-    onOpenSettings: () -> Unit,
-    onOpenProfile: () -> Unit
+    repository: FirebaseRepository,
+    onOpenCategory: () -> Unit = {},
+    onOpenCalendar: () -> Unit = {},
+    onOpenAlarm: () -> Unit = {},
+    onOpenProfile: () -> Unit = {},
+    onOpenStats: () -> Unit = {},
+    onOpenSettings: () -> Unit = {},
 ) {
     var query by remember { mutableStateOf("") }
     var filter by remember { mutableStateOf(Filter.All) }
     var showEditor by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<Todo?>(null) }
 
-    // Clock.System 없이 간단한 규칙으로만 필터링
-    val filtered = store.items.filter { todo ->
-        val matchQuery = query.isBlank() || todo.title.contains(query, ignoreCase = true)
+    // State for holding todos fetched from Firebase
+    var allTodos by remember { mutableStateOf<List<Todo>>(emptyList()) }
+    val coroutineScope = rememberCoroutineScope()
+
+    // Function to refresh the todo list from Firestore
+    val refreshTodos = {
+        coroutineScope.launch {
+            allTodos = repository.getAllTodos().map { it.toTodo() }
+        }
+    }
+
+    // Fetch initial data
+    LaunchedEffect(Unit) {
+        refreshTodos()
+    }
+
+    val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+    val filtered = allTodos.filter {
+        val matchQuery = query.isBlank() || it.title.contains(query, true)
         val matchFilter = when (filter) {
             Filter.All -> true
             // "오늘" 탭: 아직 완료되지 않은 할 일
@@ -116,6 +176,23 @@ fun HomeScreen(
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            // KPI
+            item {
+                KPISection(
+                    totalToday = allTodos.count { it.due == today },
+                    activeCount = allTodos.count { !it.done },
+                    doneRate = allTodos.let { if (it.isEmpty()) 0 else (it.count { t -> t.done } * 100 / it.size) }
+                )
+            }
+
+            // 퀵 액션
+            item {
+                QuickActions(
+                    onCategory = onOpenCategory, onCalendar = onOpenCalendar,
+                    onAlarm = onOpenAlarm, onProfile = onOpenProfile
+                )
+            }
+
             // 검색
             OutlinedTextField(
                 value = query,
@@ -136,24 +213,66 @@ fun HomeScreen(
             if (filtered.isEmpty()) {
                 EmptyState(filter = filter)
             } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(filtered, key = { it.id }) { todo ->
-                        TodoItemRow(
-                            todo = todo,
-                            onToggle = { store.toggleDone(todo.id) },
-                            onEdit = {
-                                editing = todo
-                                showEditor = true
-                            },
-                            onDelete = { store.remove(todo.id) }
-                        )
-                    }
+                items(filtered, key = { it.id }) { todo ->
+                    TodoRow(
+                        todo = todo,
+                        onToggle = {
+                            coroutineScope.launch {
+                                val updatedTodo = todo.copy(done = !todo.done)
+                                repository.updateTodo(updatedTodo.toFirestoreTodo())
+                                refreshTodos()
+                            }
+                        },
+                        onEdit = { editing = todo; showEditor = true },
+                        onDelete = {
+                            coroutineScope.launch {
+                                repository.deleteTodo(todo.id)
+                                refreshTodos()
+                            }
+                        }
+                    )
+                    HorizontalDivider()
                 }
             }
         }
+    }
+
+    if (showEditor) {
+        EditTodoSheet(
+            initial = editing,
+            onDismiss = { showEditor = false },
+            onSubmit = { t ->
+                coroutineScope.launch {
+                     if (editing == null) {
+                        // For new items, ensure ID is set
+                        val newTodo = if(t.id.isBlank()) t.copy(id = UUID.randomUUID().toString()) else t
+                        repository.addTodo(newTodo.toFirestoreTodo())
+                    } else {
+                        // For existing items, just update
+                        repository.updateTodo(t.toFirestoreTodo())
+                    }
+                    showEditor = false
+                    refreshTodos()
+                }
+            }
+        )
+    }
+}
+
+/* ───────── 리스트 아이템 ───────── */
+
+@Composable
+private fun TodoRow(
+    todo: Todo,
+    onToggle: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
+    var menu by remember { mutableStateOf(false) }
+
+    val container = if (todo.done) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+    else MaterialTheme.colorScheme.surface
+    val checkColor = if (todo.done) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
 
         if (showEditor) {
             EditTodoSheet(
