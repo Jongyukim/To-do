@@ -1,3 +1,6 @@
+// AuthScreen.kt
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package com.example.smarttodo
 
 import androidx.compose.foundation.background
@@ -12,6 +15,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 
@@ -38,18 +42,31 @@ fun AuthScreen(
                 .fillMaxSize()
                 .padding(pad)
                 .padding(horizontal = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(Modifier.height(28.dp))
+            Spacer(Modifier.height(24.dp))
             AppBadge()
-            Spacer(Modifier.height(12.dp))
-            Text("스마트 To-Do", style = MaterialTheme.typography.titleLarge)
-            Text("효율적인 일정 관리의 시작", color = Color.Gray)
-
-            Spacer(Modifier.height(20.dp))
-            AuthTabs(tab = tab, onChange = { tab = it })
+            Text(
+                text = "SmartTodo",
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                text = "로그인하거나 계정을 만들어\n나만의 할 일 관리를 시작해 보세요.",
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
 
             Spacer(Modifier.height(16.dp))
+            AuthTabs(tab = tab) {
+                tab = it
+                message = null
+            }
+
+            Spacer(Modifier.height(24.dp))
+
             when (tab) {
                 AuthTab.Login -> LoginForm(
                     onLogin = onLogin,
@@ -75,13 +92,17 @@ fun AuthScreen(
     }
 }
 
-private enum class AuthTab { Login, Register }
-
 @Composable
-private fun AuthTabs(tab: AuthTab, onChange: (AuthTab) -> Unit) {
+private fun AuthTabs(
+    tab: AuthTab,
+    onChange: (AuthTab) -> Unit
+) {
     val titles = listOf("로그인", "회원가입")
     val selectedIndex = if (tab == AuthTab.Login) 0 else 1
-    TabRow(selectedTabIndex = selectedIndex, containerColor = Color.Transparent) {
+    TabRow(
+        selectedTabIndex = selectedIndex,
+        containerColor = Color.Transparent
+    ) {
         titles.forEachIndexed { idx, title ->
             Tab(
                 selected = selectedIndex == idx,
@@ -104,15 +125,29 @@ private fun LoginForm(
     var showPw by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
 
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
         OutlinedTextField(
-            value = email, onValueChange = { email = it },
-            label = { Text("이메일") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("example@email.com") }
+            value = email,
+            onValueChange = {
+                email = it
+                onError("")
+            },
+            label = { Text("이메일") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
         )
         OutlinedTextField(
-            value = pw, onValueChange = { pw = it },
-            label = { Text("비밀번호") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+            value = pw,
+            onValueChange = {
+                pw = it
+                onError("")
+            },
+            label = { Text("비밀번호") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
             visualTransformation = if (showPw) VisualTransformation.None else PasswordVisualTransformation(),
             trailingIcon = {
                 IconButton(onClick = { showPw = !showPw }) {
@@ -140,7 +175,9 @@ private fun LoginForm(
             },
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(vertical = 14.dp)
-        ) { Text("로그인") }
+        ) {
+            Text("로그인")
+        }
 
         Spacer(Modifier.height(4.dp))
         TextButton(onClick = onForgotPassword) {
@@ -162,24 +199,50 @@ private fun RegisterForm(
     var showPw by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
 
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
         OutlinedTextField(
-            value = name, onValueChange = { name = it },
-            label = { Text("이름") }, singleLine = true, modifier = Modifier.fillMaxWidth()
+            value = name,
+            onValueChange = {
+                name = it
+                onError("")
+            },
+            label = { Text("이름") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
         )
         OutlinedTextField(
-            value = email, onValueChange = { email = it },
-            label = { Text("이메일") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("example@email.com") }
+            value = email,
+            onValueChange = {
+                email = it
+                onError("")
+            },
+            label = { Text("이메일") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
         )
         OutlinedTextField(
-            value = pw, onValueChange = { pw = it },
-            label = { Text("비밀번호 (8자 이상)") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
-            visualTransformation = if (showPw) VisualTransformation.None else PasswordVisualTransformation(),
+            value = pw,
+            onValueChange = {
+                pw = it
+                onError("")
+            },
+            label = { Text("비밀번호 (8자 이상)") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            visualTransformation = if (showPw) VisualTransformation.None else PasswordVisualTransformation()
         )
         OutlinedTextField(
-            value = pw2, onValueChange = { pw2 = it },
-            label = { Text("비밀번호 확인") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+            value = pw2,
+            onValueChange = {
+                pw2 = it
+                onError("")
+            },
+            label = { Text("비밀번호 확인") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
             visualTransformation = if (showPw) VisualTransformation.None else PasswordVisualTransformation(),
             trailingIcon = {
                 IconButton(onClick = { showPw = !showPw }) {
@@ -190,7 +253,6 @@ private fun RegisterForm(
                 }
             }
         )
-        val enabled = name.isNotBlank() && email.isNotBlank() && pw.length >= 8 && pw2 == pw
         Button(
             onClick = {
                 if (enabled) {
@@ -209,7 +271,9 @@ private fun RegisterForm(
             enabled = enabled,
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(vertical = 14.dp)
-        ) { Text("회원가입") }
+        ) {
+            Text("회원가입")
+        }
     }
 }
 

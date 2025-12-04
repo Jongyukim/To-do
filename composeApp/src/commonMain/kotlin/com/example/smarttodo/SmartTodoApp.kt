@@ -1,3 +1,4 @@
+// SmartTodoApp.kt
 @file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 
 package com.example.smarttodo
@@ -49,10 +50,11 @@ fun SmartTodoApp() {
         onSurfaceVariant = Color(0xFF6B7280)
     )
 
-    MaterialTheme(colorScheme = customColorScheme) {
+    MaterialTheme {
         when (screen) {
             Screen.Onboarding -> OnboardingScreens(
-                onSkip = { screen = Screen.Auth }, onFinish = { screen = Screen.Auth }
+                onSkip = { screen = Screen.Auth },
+                onFinish = { screen = Screen.Auth }
             )
 
             Screen.Auth -> AuthScreen(
@@ -72,11 +74,20 @@ fun SmartTodoApp() {
                 onOpenProfile = { screen = Screen.Profile }
             )
 
-            Screen.Category -> CategoryScreen(store = store, onBack = { screen = Screen.Home })
-            Screen.Calendar -> CalendarScreen(store = store, onBack = { screen = Screen.Home })
+            Screen.Calendar -> CalendarScreen(
+                store = store,
+                onBack = { screen = Screen.Home }
+            )
+
             Screen.Notifications -> NotificationScreen(
                 store = store,
-                onBack = { screen = Screen.Home })
+                onBack = { screen = Screen.Home }
+            )
+
+            Screen.Category -> CategoryScreen(
+                store = store,
+                onBack = { screen = Screen.Home }
+            )
 
             Screen.Stats -> StatisticsScreen(
                 store = store,
