@@ -15,6 +15,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
+// 🔥 1. Firebase 초기화 (다른 서비스 초기화 전에 실행)
         Firebase.initialize(this)
 
         // NotificationManager 초기화

@@ -109,42 +109,6 @@ fun SettingsScreen(
                     }
                 }
             }
-
-            // 앱 정보
-            SectionHeader("앱 정보")
-            Card(
-                shape = MaterialTheme.shapes.extraLarge,
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-            ) {
-                Column(Modifier.fillMaxWidth()) {
-                    SettingLinkRow("앱 버전", "1.0.0")
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    SettingLinkRow("개인정보 처리방침")
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    SettingLinkRow("이용 약관")
-                }
-            }
-
-            // 계정 - 로그아웃
-            SectionHeader("계정")
-            OutlinedButton(
-                onClick = onLogout,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = MaterialTheme.colorScheme.error
-                )
-            ) {
-                Icon(Icons.Filled.Logout, null)
-                Spacer(Modifier.width(8.dp))
-                Text("로그아웃")
-            }
-
-            Spacer(Modifier.height(12.dp))
-            Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("스마트 To-Do", color = Color.Gray)
-                Text("© 2025 All rights reserved", color = Color.Gray)
-            }
-            Spacer(Modifier.height(8.dp))
         }
     }
 }
