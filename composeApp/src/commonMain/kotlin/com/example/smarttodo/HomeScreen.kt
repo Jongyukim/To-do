@@ -1,540 +1,293 @@
+// HomeScreen.kt
 @file:OptIn(
-    androidx.compose.material3.ExperimentalMaterial3Api::class,
-    androidx.compose.foundation.ExperimentalFoundationApi::class
+    androidx.compose.material3.ExperimentalMaterial3Api::class
 )
 
 package com.example.smarttodo
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
-import com.example.smarttodo.data.FirebaseRepository
-import com.example.smarttodo.data.FirestoreTodo
-import kotlinx.coroutines.launch
-import kotlinx.datetime.*
-import java.util.UUID
-
-// Extension function for String to LocalDate conversion
-private fun String.toLocalDate(): LocalDate {
-    return LocalDate.parse(this)
-}
-
-// Mapper functions to convert between UI model and Firestore model
-private fun Todo.toFirestoreTodo(): FirestoreTodo {
-    return FirestoreTodo(
-        id = this.id,
-        title = this.title,
-        category = this.category.name,
-        due = this.due?.toString(),
-        remind = this.remind,
-        remindTime = this.remindTime,
-        memo = this.memo,
-        done = this.done
-    )
-}
-
-private fun FirestoreTodo.toTodo(): Todo {
-    // Handle potential errors if a string value from Firestore doesn't match the enum
-    val category = try {
-        TodoCategory.valueOf(this.category)
-    } catch (e: IllegalArgumentException) {
-        TodoCategory.개인 // Default to 'Personal' category on error
-    }
-    return Todo(
-        id = this.id,
-        title = this.title,
-        category = category,
-        due = this.due?.toLocalDate(),
-        remind = this.remind,
-        remindTime = this.remindTime,
-        memo = this.memo,
-        done = this.done
-    )
-}
-
 
 @Composable
 fun HomeScreen(
-    repository: FirebaseRepository,
-    onOpenCategory: () -> Unit = {},
-    onOpenCalendar: () -> Unit = {},
-    onOpenAlarm: () -> Unit = {},
-    onOpenProfile: () -> Unit = {},
-    onOpenStats: () -> Unit = {},
-    onOpenSettings: () -> Unit = {},
+    store: TodoStore,
+    onOpenCategory: () -> Unit,
+    onOpenCalendar: () -> Unit,
+    onOpenAlarm: () -> Unit,
+    onOpenStats: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onOpenProfile: () -> Unit
 ) {
-    // 편집 시트 상태
+    var query by remember { mutableStateOf("") }
+    var filter by remember { mutableStateOf(Filter.All) }
     var showEditor by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<Todo?>(null) }
 
-    var tabIndex by remember { mutableIntStateOf(0) }
-    var query by remember { mutableStateOf("") }
-    var filter by remember { mutableStateOf(Filter.All) }
-
-    // State for holding todos fetched from Firebase
-    var allTodos by remember { mutableStateOf<List<Todo>>(emptyList()) }
-    val coroutineScope = rememberCoroutineScope()
-
-    // Function to refresh the todo list from Firestore
-    val refreshTodos = {
-        coroutineScope.launch {
-            allTodos = repository.getAllTodos().map { it.toTodo() }
-        }
-    }
-
-    // Fetch initial data
-    LaunchedEffect(Unit) {
-        refreshTodos()
-    }
-
-    val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
-    val filtered = allTodos.filter {
-        val matchQuery = query.isBlank() || it.title.contains(query, true)
+    // Clock.System 없이 간단한 규칙으로만 필터링
+    val filtered = store.items.filter { todo ->
+        val matchQuery = query.isBlank() || todo.title.contains(query, ignoreCase = true)
         val matchFilter = when (filter) {
             Filter.All -> true
-            Filter.Today -> it.due == today
-            Filter.Upcoming -> it.due?.let { d -> d > today } ?: false
-            Filter.Done -> it.done
+            // "오늘" 탭: 아직 완료되지 않은 할 일
+            Filter.Today -> !todo.done
+            // "다가오는" 탭: 마감일이 있고 미완료인 할 일
+            Filter.Upcoming -> todo.due != null && !todo.done
+            // "완료됨" 탭
+            Filter.Done -> todo.done
         }
         matchQuery && matchFilter
     }
 
-        Scaffold(
+    Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("스마트 To-Do", fontWeight = FontWeight.Bold) },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface
-                )
+                actions = {
+                    IconButton(onClick = onOpenProfile) {
+                        Icon(
+                            imageVector = Icons.Filled.Person,
+                            contentDescription = "프로필"
+                        )
+                    }
+                }
             )
         },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { editing = null; showEditor = true },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
+                onClick = {
+                    editing = null
+                    showEditor = true
+                }
             ) {
-                Icon(Icons.Filled.Add, contentDescription = "추가")
+                Icon(Icons.Filled.Add, contentDescription = "할 일 추가")
             }
         },
         bottomBar = {
             NavigationBar {
                 NavigationBarItem(
                     selected = true,
-                    onClick = { /* stay */ },
-                    icon = { Icon(Icons.Filled.Home, null) },
+                    onClick = { },
+                    icon = { Icon(Icons.Filled.Home, contentDescription = "홈") },
                     label = { Text("홈") }
                 )
                 NavigationBarItem(
                     selected = false,
+                    onClick = onOpenCalendar,
+                    icon = { Icon(Icons.Filled.CalendarMonth, contentDescription = "캘린더") },
+                    label = { Text("캘린더") }
+                )
+                NavigationBarItem(
+                    selected = false,
                     onClick = onOpenStats,
-                    icon = { Icon(Icons.Filled.Assessment, null) },
+                    icon = { Icon(Icons.Filled.Assessment, contentDescription = "통계") },
                     label = { Text("통계") }
                 )
                 NavigationBarItem(
                     selected = false,
                     onClick = onOpenSettings,
-                    icon = { Icon(Icons.Filled.Settings, null) },
+                    icon = { Icon(Icons.Filled.Settings, contentDescription = "설정") },
                     label = { Text("설정") }
                 )
             }
         }
-    ) { pad ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(pad),
-            contentPadding = PaddingValues(bottom = 96.dp)
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // KPI
-            item {
-                KPISection(
-                    totalToday = allTodos.count { it.due == today },
-                    activeCount = allTodos.count { !it.done },
-                    doneRate = allTodos.let { if (it.isEmpty()) 0 else (it.count { t -> t.done } * 100 / it.size) }
-                )
-            }
-
-            // 퀵 액션
-            item {
-                QuickActions(
-                    onCategory = onOpenCategory, onCalendar = onOpenCalendar,
-                    onAlarm = onOpenAlarm, onProfile = onOpenProfile
-                )
-            }
-
             // 검색
-            item {
-                OutlinedTextField(
-                    value = query, onValueChange = { query = it },
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                    placeholder = { Text("할 일 검색…") }, singleLine = true
-                )
-                Spacer(Modifier.height(10.dp))
-            }
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text("할 일 검색") }
+            )
 
             // 필터 칩
-            item {
-                FilterChips(selected = filter, onSelect = { filter = it }, modifier = Modifier.padding(horizontal = 12.dp))
-                Spacer(Modifier.height(8.dp))
-            }
+            FilterChipsRow(
+                selected = filter,
+                onSelect = { filter = it }
+            )
+
+            Spacer(Modifier.height(4.dp))
 
             if (filtered.isEmpty()) {
-                item { EmptyState() }
+                EmptyState(filter = filter)
             } else {
-                items(filtered, key = { it.id }) { todo ->
-                    TodoRow(
-                        todo = todo,
-                        onToggle = {
-                            coroutineScope.launch {
-                                val updatedTodo = todo.copy(done = !todo.done)
-                                repository.updateTodo(updatedTodo.toFirestoreTodo())
-                                refreshTodos()
-                            }
-                        },
-                        onEdit = { editing = todo; showEditor = true },
-                        onDelete = {
-                            coroutineScope.launch {
-                                repository.deleteTodo(todo.id)
-                                refreshTodos()
-                            }
-                        }
-                    )
-                    HorizontalDivider()
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(filtered, key = { it.id }) { todo ->
+                        TodoItemRow(
+                            todo = todo,
+                            onToggle = { store.toggleDone(todo.id) },
+                            onEdit = {
+                                editing = todo
+                                showEditor = true
+                            },
+                            onDelete = { store.remove(todo.id) }
+                        )
+                    }
                 }
             }
         }
-    }
 
-    if (showEditor) {
-        EditTodoSheet(
-            initial = editing,
-            onDismiss = { showEditor = false },
-            onSubmit = { t ->
-                coroutineScope.launch {
-                     if (editing == null) {
-                        // For new items, ensure ID is set
-                        val newTodo = if(t.id.isBlank()) t.copy(id = UUID.randomUUID().toString()) else t
-                        repository.addTodo(newTodo.toFirestoreTodo())
+        if (showEditor) {
+            EditTodoSheet(
+                initial = editing,
+                onDismiss = {
+                    showEditor = false
+                    editing = null
+                },
+                onSubmit = { submitted ->
+                    if (editing == null) {
+                        store.add(submitted)
                     } else {
-                        // For existing items, just update
-                        repository.updateTodo(t.toFirestoreTodo())
+                        // 같은 id 유지하면서 내용만 교체
+                        store.update(submitted.id) { submitted }
                     }
                     showEditor = false
-                    refreshTodos()
+                    editing = null
                 }
-            }
-        )
-    }
-}
-
-/* ───────── 리스트 아이템 ───────── */
-
-@Composable
-private fun TodoRow(
-    todo: Todo,
-    onToggle: () -> Unit,
-    onEdit: () -> Unit,
-    onDelete: () -> Unit
-) {
-    var menu by remember { mutableStateOf(false) }
-
-    val container = if (todo.done) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
-    else MaterialTheme.colorScheme.surface
-    val checkColor = if (todo.done) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-
-    Surface(
-        color = container,
-        shadowElevation = if (todo.done) 0.dp else 1.dp
-    ) {
-        ListItem(
-            leadingContent = {
-                Checkbox(
-                    checked = todo.done,
-                    onCheckedChange = { onToggle() },
-                    colors = CheckboxDefaults.colors(checkedColor = checkColor)
-                )
-            },
-            headlineContent = {
-                Text(
-                    todo.title,
-                    fontWeight = if (todo.done) FontWeight.Normal else FontWeight.SemiBold,
-                    textDecoration = if (todo.done) TextDecoration.LineThrough else TextDecoration.None
-                )
-            },
-            supportingContent = {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    // 카테고리 칩
-                    AssistChip(
-                        onClick = {},
-                        label = { Text(todo.category.name) },
-                        colors = AssistChipDefaults.assistChipColors(
-                            containerColor = if (todo.done) MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
-                            else MaterialTheme.colorScheme.surfaceVariant,
-                            labelColor = if (todo.done) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurface
-                        )
-                    )
-                    // 마감일 칩
-                    val dueText = todo.due?.toString() ?: "마감 없음"
-                    AssistChip(
-                        onClick = {},
-                        label = { Text(dueText) },
-                        colors = AssistChipDefaults.assistChipColors(
-                            containerColor = if (todo.done) MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
-                            else MaterialTheme.colorScheme.surfaceVariant
-                        )
-                    )
-                    // 완료 표시 칩 (완료일은 여기선 표시 생략)
-                    if (todo.done) {
-                        AssistChip(
-                            onClick = {},
-                            label = { Text("완료") },
-                            colors = AssistChipDefaults.assistChipColors(
-                                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                                labelColor = MaterialTheme.colorScheme.primary
-                            )
-                        )
-                    }
-                }
-            },
-            trailingContent = {
-                Box {
-                    IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "메뉴") }
-                    DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                        DropdownMenuItem(text = { Text("수정") }, onClick = { menu = false; onEdit() })
-                        DropdownMenuItem(
-                            text = { Text("삭제", color = MaterialTheme.colorScheme.error) },
-                            onClick = { menu = false; onDelete() }
-                        )
-                    }
-                }
-            }
-        )
-    }
-}
-/* ───────── KPI/Quick/Filter/Empty ───────── */
-
-@Composable
-private fun KPISection(totalToday: Int, activeCount: Int, doneRate: Int) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        KPIBadge(
-            title = "오늘",
-            value = totalToday.toString(),
-            color = Color(0xFF6366F1), // Primary와 일치
-            icon = Icons.Filled.CalendarMonth,
-            modifier = Modifier.weight(1f)
-        )
-        KPIBadge(
-            title = "진행",
-            value = activeCount.toString(),
-            color = Color(0xFF10B981), // Secondary와 일치
-            icon = Icons.Filled.Assessment,
-            modifier = Modifier.weight(1f)
-        )
-        KPIBadge(
-            title = "완료율",
-            value = "$doneRate%",
-            color = Color(0xFFF59E0B), // Tertiary와 일치
-            icon = Icons.Filled.Assessment,
-            modifier = Modifier.weight(1f)
-        )
-    }
-}
-
-@Composable
-private fun KPIBadge(
-    title: String,
-    value: String,
-    color: Color,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier,
-        shape = MaterialTheme.shapes.large,
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.White
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Surface(
-                shape = MaterialTheme.shapes.medium,
-                color = color.copy(alpha = 0.15f),
-                modifier = Modifier.size(48.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        icon,
-                        contentDescription = null,
-                        tint = color,
-                        modifier = Modifier.size(28.dp)
-                    )
-                }
-            }
-            Text(
-                value,
-                style = MaterialTheme.typography.headlineLarge,
-                color = color,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                title,
-                style = MaterialTheme.typography.labelMedium,
-                color = color.copy(alpha = 0.8f),
-                fontWeight = FontWeight.Medium
             )
         }
-    }
-}
-
-@Composable
-private fun QuickActions(
-    onCategory: () -> Unit,
-    onCalendar: () -> Unit,
-    onAlarm: () -> Unit,
-    onProfile: () -> Unit
-) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        shape = MaterialTheme.shapes.extraLarge,
-        color = MaterialTheme.colorScheme.surface,
-        shadowElevation = 2.dp
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 12.dp, horizontal = 8.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
-            ActionIcon("카테고리", Icons.Filled.Category, onCategory, Color(0xFF6366F1))
-            ActionIcon("캘린더", Icons.Filled.CalendarMonth, onCalendar, Color(0xFF10B981))
-            ActionIcon("알림", Icons.Filled.Notifications, onAlarm, Color(0xFFF59E0B))
-            ActionIcon("프로필", Icons.Filled.Settings, onProfile, Color(0xFF8B5CF6))
-        }
-    }
-    Spacer(Modifier.height(16.dp))
-}
-
-@Composable
-private fun ActionIcon(
-    label: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    onClick: () -> Unit,
-    iconColor: Color
-) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.padding(horizontal = 4.dp)
-    ) {
-        Surface(
-            onClick = onClick,
-            shape = MaterialTheme.shapes.large,
-            color = iconColor.copy(alpha = 0.1f),
-            modifier = Modifier.size(56.dp)
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    icon,
-                    contentDescription = label,
-                    tint = iconColor,
-                    modifier = Modifier.size(28.dp)
-                )
-            }
-        }
-        Spacer(Modifier.height(8.dp))
-        Text(
-            label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-            fontWeight = FontWeight.Medium
-        )
     }
 }
 
 private enum class Filter { All, Today, Upcoming, Done }
 
 @Composable
-private fun FilterChips(
+private fun FilterChipsRow(
     selected: Filter,
-    onSelect: (Filter) -> Unit,
-    modifier: Modifier = Modifier
+    onSelect: (Filter) -> Unit
 ) {
-    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        SuggestionChip({ onSelect(Filter.All) }, { Text("전체") }, colors = chipColors(selected == Filter.All))
-        SuggestionChip({ onSelect(Filter.Today) }, { Text("오늘") }, colors = chipColors(selected == Filter.Today))
-        SuggestionChip({ onSelect(Filter.Upcoming) }, { Text("다가오는") }, colors = chipColors(selected == Filter.Upcoming))
-        SuggestionChip({ onSelect(Filter.Done) }, { Text("완료됨") }, colors = chipColors(selected == Filter.Done))
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Filter.values().forEach { f ->
+            AssistChip(
+                onClick = { onSelect(f) },
+                label = {
+                    Text(
+                        text = when (f) {
+                            Filter.All -> "전체"
+                            Filter.Today -> "오늘"
+                            Filter.Upcoming -> "다가오는"
+                            Filter.Done -> "완료됨"
+                        }
+                    )
+                },
+                colors = AssistChipDefaults.assistChipColors(
+                    containerColor = if (f == selected)
+                        MaterialTheme.colorScheme.primaryContainer
+                    else
+                        MaterialTheme.colorScheme.surfaceVariant,
+                    labelColor = if (f == selected)
+                        MaterialTheme.colorScheme.onPrimaryContainer
+                    else
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            )
+        }
     }
 }
 
 @Composable
-private fun chipColors(sel: Boolean) =
-    SuggestionChipDefaults.suggestionChipColors(
-        containerColor = if (sel) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surface,
-        labelColor = if (sel) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-    )
-
-@Composable
-private fun EmptyState() {
-    Column(
-        Modifier.fillMaxWidth().padding(vertical = 64.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+private fun TodoItemRow(
+    todo: Todo,
+    onToggle: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Surface(
-            modifier = Modifier.size(96.dp),
-            shape = MaterialTheme.shapes.extraLarge,
-            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
-            shadowElevation = 0.dp
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    Icons.Filled.Add,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
-                    modifier = Modifier.size(48.dp)
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Checkbox(
+                    checked = todo.done,
+                    onCheckedChange = { onToggle() }
                 )
+                Spacer(Modifier.width(8.dp))
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = todo.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    val dueText = todo.due?.toString() ?: "마감일 없음"
+                    Text(
+                        text = "카테고리: ${todo.category} · 마감: $dueText",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            Row(
+                modifier = Modifier.align(Alignment.End),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                TextButton(onClick = onEdit) {
+                    Text("수정")
+                }
+                TextButton(onClick = onDelete) {
+                    Text("삭제")
+                }
             }
         }
-        Spacer(Modifier.height(20.dp))
+    }
+}
+
+@Composable
+private fun EmptyState(filter: Filter) {
+    val text = when (filter) {
+        Filter.All -> "등록된 할 일이 없습니다.\n오른쪽 아래 + 버튼으로 새 할 일을 추가하세요."
+        Filter.Today -> "오늘 할 일이 없습니다."
+        Filter.Upcoming -> "다가오는 할 일이 없습니다."
+        Filter.Done -> "완료된 할 일이 아직 없습니다."
+    }
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
         Text(
-            "할 일이 없습니다",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            "새로운 할 일을 추가해보세요",
+            text = text,
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }

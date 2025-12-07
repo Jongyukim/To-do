@@ -1,69 +1,34 @@
+// SmartTodoApp.kt
 @file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 
 package com.example.smarttodo
 
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.graphics.Color
-import com.example.smarttodo.data.FirebaseRepository
-import com.example.smarttodo.data.getFirebaseRepository
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 
 @Composable
 fun SmartTodoApp() {
     var screen by remember { mutableStateOf<Screen>(Screen.Onboarding) }
-    val notificationManager = remember {
-        try {
-            getNotificationManager()
-        } catch (e: Exception) {
-            null // Desktop이나 초기화되지 않은 경우 null
-        }
-    }
-    val store = remember { TodoStore(notificationManager) }
-    val firebaseRepository = remember { getFirebaseRepository() }
-    val authManager = remember { getAuthManager() } // AuthManager 인스턴스 생성
+    val store = remember { TodoStore() }
 
-    // 앱 시작 시 로그인 상태 확인
-    LaunchedEffect(Unit) {
-        if (authManager.isLoggedIn()) {
-            screen = Screen.Home
-        }
-    }
-
-    // 모던하고 일관된 색상 팔레트
-    val customColorScheme = lightColorScheme(
-        primary = Color(0xFF6366F1), // 인디고 계열 - 더 모던한 느낌
-        onPrimary = Color.White,
-        primaryContainer = Color(0xFFE0E7FF),
-        onPrimaryContainer = Color(0xFF312E81),
-        secondary = Color(0xFF10B981), // 에메랄드 그린
-        onSecondary = Color.White,
-        tertiary = Color(0xFFF59E0B), // 앰버
-        onTertiary = Color.White,
-        error = Color(0xFFEF4444),
-        onError = Color.White,
-        background = Color(0xFFFAFAFA),
-        onBackground = Color(0xFF1F2937),
-        surface = Color.White,
-        onSurface = Color(0xFF1F2937),
-        surfaceVariant = Color(0xFFF3F4F6),
-        onSurfaceVariant = Color(0xFF6B7280)
-    )
-
-    MaterialTheme(colorScheme = customColorScheme) {
+    MaterialTheme {
         when (screen) {
             Screen.Onboarding -> OnboardingScreens(
-                onSkip = { screen = Screen.Auth }, onFinish = { screen = Screen.Auth }
+                onSkip = { screen = Screen.Auth },
+                onFinish = { screen = Screen.Auth }
             )
 
             Screen.Auth -> AuthScreen(
-                onLogin = { email, password -> authManager.login(email, password) },
-                onRegister = { email, password, displayName -> authManager.register(email, password, displayName) },
-                onAuthenticationSuccess = { screen = Screen.Home },
-                onForgotPassword = {}
+                onAuthenticated = { screen = Screen.Home },
+                onForgotPassword = { /* 비밀번호 찾기 미구현 */ }
             )
 
             Screen.Home -> HomeScreen(
-                repository = firebaseRepository,
+                store = store,
                 onOpenCategory = { screen = Screen.Category },
                 onOpenCalendar = { screen = Screen.Calendar },
                 onOpenAlarm = { screen = Screen.Notifications },
@@ -72,11 +37,20 @@ fun SmartTodoApp() {
                 onOpenProfile = { screen = Screen.Profile }
             )
 
-            Screen.Category -> CategoryScreen(store = store, onBack = { screen = Screen.Home })
-            Screen.Calendar -> CalendarScreen(store = store, onBack = { screen = Screen.Home })
+            Screen.Calendar -> CalendarScreen(
+                store = store,
+                onBack = { screen = Screen.Home }
+            )
+
             Screen.Notifications -> NotificationScreen(
                 store = store,
-                onBack = { screen = Screen.Home })
+                onBack = { screen = Screen.Home }
+            )
+
+            Screen.Category -> CategoryScreen(
+                store = store,
+                onBack = { screen = Screen.Home }
+            )
 
             Screen.Stats -> StatisticsScreen(
                 store = store,
@@ -87,16 +61,12 @@ fun SmartTodoApp() {
             Screen.Settings -> SettingsScreen(
                 onBack = { screen = Screen.Home },
                 onOpenProfile = { screen = Screen.Profile },
-                onLogout = {
-                    authManager.signOut()
-                    screen = Screen.Auth
-                }
+                onLogout = { screen = Screen.Auth }
             )
 
             Screen.Profile -> ProfileScreen(
                 store = store,
-                onBack = { screen = Screen.Settings },
-                authManager = authManager
+                onBack = { screen = Screen.Settings }
             )
         }
     }

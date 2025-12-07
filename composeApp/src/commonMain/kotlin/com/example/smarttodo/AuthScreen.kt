@@ -1,3 +1,4 @@
+// AuthScreen.kt
 package com.example.smarttodo
 
 import androidx.compose.foundation.background
@@ -12,63 +13,82 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import kotlinx.coroutines.launch
+// 간단한 인메모리 사용자 모델 (별도 DB 없이 앱 실행 중에만 유지)
+data class AuthUser(
+    val name: String,
+    val email: String,
+    val password: String
+)
 
 @Composable
 fun AuthScreen(
-    onLogin: suspend (String, String) -> Boolean,
-    onRegister: suspend (String, String, String?) -> Boolean,
-    onAuthenticationSuccess: () -> Unit,
+    onAuthenticated: () -> Unit,
     onForgotPassword: () -> Unit
 ) {
     var tab by remember { mutableStateOf(AuthTab.Login) }
-    val snackbarHostState = remember { SnackbarHostState() }
-    val coroutineScope = rememberCoroutineScope()
+    val users = remember { mutableStateListOf<AuthUser>() } // 회원가입한 계정 목록
+    var message by remember { mutableStateOf<String?>(null) }
 
-    Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }) { pad ->
+    Scaffold { pad ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(pad)
                 .padding(horizontal = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(Modifier.height(28.dp))
+            Spacer(Modifier.height(24.dp))
             AppBadge()
-            Spacer(Modifier.height(12.dp))
-            Text("스마트 To-Do", style = MaterialTheme.typography.titleLarge)
-            Text("효율적인 일정 관리의 시작", color = Color.Gray)
-
-            Spacer(Modifier.height(20.dp))
-            AuthTabs(tab = tab, onChange = { tab = it })
+            Text(
+                text = "SmartTodo",
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                text = "로그인하거나 계정을 만들어\n나만의 할 일 관리를 시작해 보세요.",
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
 
             Spacer(Modifier.height(16.dp))
+            AuthTabs(tab = tab) {
+                tab = it
+                message = null
+            }
+
+            Spacer(Modifier.height(24.dp))
+
             when (tab) {
                 AuthTab.Login -> LoginForm(
-                    onLogin = onLogin,
-                    onAuthenticationSuccess = onAuthenticationSuccess,
+                    users = users,
+                    onAuthenticated = onAuthenticated,
                     onForgotPassword = onForgotPassword,
-                    showSnackbar = { message ->
-                        coroutineScope.launch {
-                            snackbarHostState.showSnackbar(message)
-                        }
-                    }
+                    onError = { message = it }
                 )
+
                 AuthTab.Register -> RegisterForm(
-                    onRegister = onRegister,
-                    onAuthenticationSuccess = onAuthenticationSuccess,
-                    showSnackbar = { message ->
-                        coroutineScope.launch {
-                            snackbarHostState.showSnackbar(message)
-                        }
-                    }
+                    existing = users,
+                    onRegistered = { user ->
+                        users.add(user)
+                        message = "회원가입이 완료되었습니다. 로그인 탭에서 로그인해 주세요."
+                    },
+                    onError = { message = it }
+                )
+            }
+
+            message?.let {
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                    textAlign = TextAlign.Center
                 )
             }
         }
@@ -78,10 +98,16 @@ fun AuthScreen(
 private enum class AuthTab { Login, Register }
 
 @Composable
-private fun AuthTabs(tab: AuthTab, onChange: (AuthTab) -> Unit) {
+private fun AuthTabs(
+    tab: AuthTab,
+    onChange: (AuthTab) -> Unit
+) {
     val titles = listOf("로그인", "회원가입")
     val selectedIndex = if (tab == AuthTab.Login) 0 else 1
-    TabRow(selectedTabIndex = selectedIndex, containerColor = Color.Transparent) {
+    TabRow(
+        selectedTabIndex = selectedIndex,
+        containerColor = Color.Transparent
+    ) {
         titles.forEachIndexed { idx, title ->
             Tab(
                 selected = selectedIndex == idx,
@@ -94,53 +120,65 @@ private fun AuthTabs(tab: AuthTab, onChange: (AuthTab) -> Unit) {
 
 @Composable
 private fun LoginForm(
-    onLogin: suspend (String, String) -> Boolean,
-    onAuthenticationSuccess: () -> Unit,
+    users: List<AuthUser>,
+    onAuthenticated: () -> Unit,
     onForgotPassword: () -> Unit,
-    showSnackbar: (String) -> Unit
+    onError: (String) -> Unit
 ) {
     var email by remember { mutableStateOf("") }
     var pw by remember { mutableStateOf("") }
     var showPw by remember { mutableStateOf(false) }
-    val coroutineScope = rememberCoroutineScope()
 
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
         OutlinedTextField(
-            value = email, onValueChange = { email = it },
-            label = { Text("이메일") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("example@email.com") }
+            value = email,
+            onValueChange = {
+                email = it
+                onError("")
+            },
+            label = { Text("이메일") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
         )
         OutlinedTextField(
-            value = pw, onValueChange = { pw = it },
-            label = { Text("비밀번호") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+            value = pw,
+            onValueChange = {
+                pw = it
+                onError("")
+            },
+            label = { Text("비밀번호") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
             visualTransformation = if (showPw) VisualTransformation.None else PasswordVisualTransformation(),
             trailingIcon = {
-                IconButton(onClick = { showPw = !showPw }) {
-                    Icon(
-                        imageVector = if (showPw) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
-                        contentDescription = if (showPw) "비밀번호 숨김" else "비밀번호 표시"
-                    )
+                TextButton(onClick = { showPw = !showPw }) {
+                    Text(if (showPw) "숨김" else "표시")
                 }
             }
         )
         Button(
             onClick = {
-                if (email.isNotBlank() && pw.length >= 4) {
-                    coroutineScope.launch {
-                        val success = onLogin(email, pw)
-                        if (success) {
-                            onAuthenticationSuccess()
-                        } else {
-                            showSnackbar("로그인 실패. 이메일 또는 비밀번호를 확인하세요.")
-                        }
-                    }
+                val trimmedEmail = email.trim()
+                if (trimmedEmail.isBlank() || pw.isBlank()) {
+                    onError("이메일과 비밀번호를 입력해 주세요.")
+                    return@Button
+                }
+                val user = users.firstOrNull { it.email == trimmedEmail }
+                if (user == null || user.password != pw) {
+                    onError("이메일 또는 비밀번호가 올바르지 않습니다.")
                 } else {
-                    showSnackbar("이메일과 비밀번호를 입력해주세요.")
+                    onError("")
+                    onAuthenticated()
                 }
             },
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(vertical = 14.dp)
-        ) { Text("로그인") }
+        ) {
+            Text("로그인")
+        }
 
         Spacer(Modifier.height(4.dp))
         TextButton(onClick = onForgotPassword) {
@@ -151,65 +189,101 @@ private fun LoginForm(
 
 @Composable
 private fun RegisterForm(
-    onRegister: suspend (String, String, String?) -> Boolean,
-    onAuthenticationSuccess: () -> Unit,
-    showSnackbar: (String) -> Unit
+    existing: List<AuthUser>,
+    onRegistered: (AuthUser) -> Unit,
+    onError: (String) -> Unit
 ) {
     var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var pw by remember { mutableStateOf("") }
     var pw2 by remember { mutableStateOf("") }
     var showPw by remember { mutableStateOf(false) }
-    val coroutineScope = rememberCoroutineScope()
 
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
         OutlinedTextField(
-            value = name, onValueChange = { name = it },
-            label = { Text("이름") }, singleLine = true, modifier = Modifier.fillMaxWidth()
+            value = name,
+            onValueChange = {
+                name = it
+                onError("")
+            },
+            label = { Text("이름") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
         )
         OutlinedTextField(
-            value = email, onValueChange = { email = it },
-            label = { Text("이메일") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("example@email.com") }
+            value = email,
+            onValueChange = {
+                email = it
+                onError("")
+            },
+            label = { Text("이메일") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
         )
         OutlinedTextField(
-            value = pw, onValueChange = { pw = it },
-            label = { Text("비밀번호 (8자 이상)") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
-            visualTransformation = if (showPw) VisualTransformation.None else PasswordVisualTransformation(),
+            value = pw,
+            onValueChange = {
+                pw = it
+                onError("")
+            },
+            label = { Text("비밀번호 (8자 이상)") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            visualTransformation = if (showPw) VisualTransformation.None else PasswordVisualTransformation()
         )
         OutlinedTextField(
-            value = pw2, onValueChange = { pw2 = it },
-            label = { Text("비밀번호 확인") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+            value = pw2,
+            onValueChange = {
+                pw2 = it
+                onError("")
+            },
+            label = { Text("비밀번호 확인") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
             visualTransformation = if (showPw) VisualTransformation.None else PasswordVisualTransformation(),
             trailingIcon = {
-                IconButton(onClick = { showPw = !showPw }) {
-                    Icon(
-                        imageVector = if (showPw) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
-                        contentDescription = if (showPw) "비밀번호 숨김" else "비밀번호 표시"
-                    )
+                TextButton(onClick = { showPw = !showPw }) {
+                    Text(if (showPw) "숨김" else "표시")
                 }
             }
         )
-        val enabled = name.isNotBlank() && email.isNotBlank() && pw.length >= 8 && pw2 == pw
         Button(
             onClick = {
-                if (enabled) {
-                    coroutineScope.launch {
-                        val success = onRegister(email, pw, name.ifBlank { null })
-                        if (success) {
-                            onAuthenticationSuccess()
-                        } else {
-                            showSnackbar("회원가입 실패. 다시 시도해주세요.")
-                        }
+                val trimmedName = name.trim()
+                val trimmedEmail = email.trim()
+
+                when {
+                    trimmedName.isBlank() || trimmedEmail.isBlank() ||
+                            pw.isBlank() || pw2.isBlank() -> {
+                        onError("모든 항목을 입력해 주세요.")
                     }
-                } else {
-                    showSnackbar("모든 필드를 올바르게 입력해주세요.")
+
+                    pw.length < 8 -> {
+                        onError("비밀번호는 8자 이상이어야 합니다.")
+                    }
+
+                    pw != pw2 -> {
+                        onError("비밀번호와 비밀번호 확인이 일치하지 않습니다.")
+                    }
+
+                    existing.any { it.email == trimmedEmail } -> {
+                        onError("이미 가입된 이메일입니다.")
+                    }
+
+                    else -> {
+                        onError("")
+                        onRegistered(AuthUser(trimmedName, trimmedEmail, pw))
+                    }
                 }
             },
-            enabled = enabled,
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(vertical = 14.dp)
-        ) { Text("회원가입") }
+        ) {
+            Text("회원가입")
+        }
     }
 }
 
