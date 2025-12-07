@@ -13,14 +13,33 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.smarttodo.data.FirebaseRepository
+import com.example.smarttodo.data.FirestoreTodo
+import kotlinx.coroutines.launch
+import kotlinx.datetime.LocalDate
 
 @Composable
 fun NotificationScreen(
     store: TodoStore,
+    repository: FirebaseRepository, // [수정] repository 추가
     onBack: () -> Unit
 ) {
-    val scheduled = store.items.filter { it.remind }
-    val total = store.items.size
+    val scope = rememberCoroutineScope()
+    // [추가] Firebase 데이터를 담을 변수
+    var allTodos by remember { mutableStateOf<List<Todo>>(emptyList()) }
+
+    // [추가] 화면 켜질 때 데이터 불러오기
+    LaunchedEffect(Unit) {
+        try {
+            allTodos = repository.getAllTodos().map { it.toTodo() }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    // [수정] 불러온 데이터에서 알림이 켜진 것만 필터링
+    val scheduled = allTodos.filter { it.remind }
+    val total = allTodos.size
     val scheduledCount = scheduled.size
 
     Scaffold(
@@ -62,7 +81,13 @@ fun NotificationScreen(
                         NotificationRow(
                             todo = todo,
                             onToggle = {
-                                store.update(todo.id) { it.copy(remind = !it.remind) }
+                                // [수정] 스위치 토글 시 Firebase 업데이트
+                                scope.launch {
+                                    val updatedTodo = todo.copy(remind = !todo.remind)
+                                    repository.updateTodo(updatedTodo.toFirestoreTodo())
+                                    // 목록 새로고침
+                                    allTodos = repository.getAllTodos().map { it.toTodo() }
+                                }
                             }
                         )
                     }
@@ -188,22 +213,28 @@ private fun NotificationRow(
                             labelColor = MaterialTheme.colorScheme.onSecondaryContainer
                         )
                     )
-                    AssistChip(
-                        onClick = {},
-                        label = { Text(todo.due?.toString() ?: "오늘", fontWeight = FontWeight.Medium) },
-                        colors = AssistChipDefaults.assistChipColors(
-                            containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f),
-                            labelColor = MaterialTheme.colorScheme.onTertiaryContainer
+
+                    // 알림 시간 표시
+                    if (todo.remindTime != null) {
+                        AssistChip(
+                            onClick = {},
+                            label = { Text(todo.remindTime, fontWeight = FontWeight.Medium) },
+                            colors = AssistChipDefaults.assistChipColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                                labelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
                         )
-                    )
-                    AssistChip(
-                        onClick = {},
-                        label = { Text(todo.remindTime ?: "09:00", fontWeight = FontWeight.Medium) },
-                        colors = AssistChipDefaults.assistChipColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
-                            labelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    } else {
+                        // 시간이 없으면 날짜 표시
+                        AssistChip(
+                            onClick = {},
+                            label = { Text(todo.due?.toString() ?: "미정", fontWeight = FontWeight.Medium) },
+                            colors = AssistChipDefaults.assistChipColors(
+                                containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f),
+                                labelColor = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
                         )
-                    )
+                    }
                 }
             }
 
@@ -235,4 +266,38 @@ private fun EmptyNotifications() {
             Text("예정된 알림이 없습니다", color = Color.Gray)
         }
     }
+}
+
+// ---------------------------------------------------------
+// [추가] 데이터 매퍼 (오류 방지용)
+// ---------------------------------------------------------
+private fun FirestoreTodo.toTodo(): Todo {
+    val category = try {
+        TodoCategory.valueOf(this.category)
+    } catch (e: IllegalArgumentException) {
+        TodoCategory.개인
+    }
+    return Todo(
+        id = this.id,
+        title = this.title,
+        category = category,
+        due = this.due?.let { LocalDate.parse(it) },
+        remind = this.remind,
+        remindTime = this.remindTime,
+        memo = this.memo,
+        done = this.done
+    )
+}
+
+private fun Todo.toFirestoreTodo(): FirestoreTodo {
+    return FirestoreTodo(
+        id = this.id,
+        title = this.title,
+        category = this.category.name,
+        due = this.due?.toString(),
+        remind = this.remind,
+        remindTime = this.remindTime,
+        memo = this.memo,
+        done = this.done
+    )
 }

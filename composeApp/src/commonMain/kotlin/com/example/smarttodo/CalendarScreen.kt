@@ -3,7 +3,6 @@
 package com.example.smarttodo
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -18,24 +17,39 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.example.smarttodo.data.FirebaseRepository
+import com.example.smarttodo.data.FirestoreTodo
 import kotlinx.datetime.*
 
 @Composable
 fun CalendarScreen(
-    store: TodoStore,
+    repository: FirebaseRepository, // [수정] store 대신 repository 사용
     onBack: () -> Unit
 ) {
     val tz = TimeZone.currentSystemDefault()
     val today = remember { Clock.System.now().toLocalDateTime(tz).date }
 
-    var current by remember { mutableStateOf(today) }   // 현재 보이는 월(임의 날짜)
+    var current by remember { mutableStateOf(today) }   // 현재 보이는 월
     var selected by remember { mutableStateOf(today) }  // 선택된 날짜
+
+    // [추가] Firebase 데이터를 담을 변수
+    var allTodos by remember { mutableStateOf<List<Todo>>(emptyList()) }
+
+    // [추가] 화면 켜질 때 데이터 불러오기
+    LaunchedEffect(Unit) {
+        try {
+            allTodos = repository.getAllTodos().map { it.toTodo() }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
 
     val ym = YearMonthK(current.year, current.month)
     val monthCells = remember(ym) { buildMonthCells(ym) }
 
-    val dayTodos = remember(selected, store.items) {
-        store.items.filter { it.due == selected }
+    // [수정] store.items 대신 allTodos 사용
+    val dayTodos = remember(selected, allTodos) {
+        allTodos.filter { it.due == selected }
     }
 
     Scaffold(
@@ -113,7 +127,8 @@ fun CalendarScreen(
                                 day = day,
                                 isToday = day == today,
                                 isSelected = day == selected,
-                                hasTodos = day != null && store.items.any { it.due == day },
+                                // [수정] store.items 대신 allTodos 사용
+                                hasTodos = day != null && allTodos.any { it.due == day },
                                 onClick = {
                                     day?.let {
                                         selected = it
@@ -278,18 +293,33 @@ private fun TodoCardCompact(todo: Todo) {
     }
 }
 
-/* ---------- Date helpers (kotlinx.datetime만 사용) ---------- */
+/* ---------- Date helpers & Mapper ---------- */
+
+private fun FirestoreTodo.toTodo(): Todo {
+    val category = try {
+        TodoCategory.valueOf(this.category)
+    } catch (e: IllegalArgumentException) {
+        TodoCategory.개인
+    }
+    return Todo(
+        id = this.id,
+        title = this.title,
+        category = category,
+        due = this.due?.let { LocalDate.parse(it) },
+        remind = this.remind,
+        remindTime = this.remindTime,
+        memo = this.memo,
+        done = this.done
+    )
+}
 
 private data class YearMonthK(val year: Int, val month: Month) {
     val monthNumber: Int get() = month.number
 }
 
-/** 월 첫째날 기준, 달력 셀(앞/뒤 null 포함) 생성 */
 private fun buildMonthCells(ym: YearMonthK): List<LocalDate?> {
     val first = LocalDate(ym.year, ym.month, 1)
     val days = daysInMonth(ym.year, ym.month)
-
-    // 일요일 시작 달력 → Sun=0 (Mon=1 … Sun=7 → %7)
     val sunBasedOffset = first.dayOfWeek.isoDayNumber % 7
 
     val cells = mutableListOf<LocalDate?>()

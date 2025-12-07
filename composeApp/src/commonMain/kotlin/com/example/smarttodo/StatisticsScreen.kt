@@ -24,21 +24,34 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.example.smarttodo.data.FirebaseRepository
+import com.example.smarttodo.data.FirestoreTodo
 import kotlinx.datetime.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StatisticsScreen(
-    store: TodoStore,
+    repository: FirebaseRepository, // [수정] store 대신 repository 사용
     onBackHome: () -> Unit,
     onOpenSettings: () -> Unit
 ) {
-    val items = store.items
+    // [추가] 데이터를 담을 상태 변수
+    var items by remember { mutableStateOf<List<Todo>>(emptyList()) }
+
+    // [추가] 화면 진입 시 Firebase에서 데이터 불러오기
+    LaunchedEffect(Unit) {
+        try {
+            items = repository.getAllTodos().map { it.toTodo() }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     val total = items.size
     val done = items.count { it.done }
     val active = total - done
     val rate = if (total == 0) 0 else (done * 100 / total)
-    
+
     val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
     val todayCount = items.count { it.due == today }
 
@@ -86,7 +99,7 @@ fun StatisticsScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Spacer(Modifier.height(8.dp))
-            
+
             // 요약 통계 카드 3개
             Row(
                 Modifier.fillMaxWidth(),
@@ -145,7 +158,7 @@ fun StatisticsScreen(
                             )
                         }
                     }
-                    
+
                     Row(
                         Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceEvenly,
@@ -192,23 +205,23 @@ fun StatisticsScreen(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    
+
                     Spacer(Modifier.height(8.dp))
-                    
+
                     val doneActive = listOf(
                         Segment(done.toFloat(), MaterialTheme.colorScheme.primary),
                         Segment(active.toFloat(), MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f))
                     )
-                    
+
                     Box(
                         Modifier.fillMaxWidth(),
                         contentAlignment = Alignment.Center
                     ) {
                         AnimatedPie(segments = doneActive, diameter = 200.dp)
                     }
-                    
+
                     Spacer(Modifier.height(8.dp))
-                    
+
                     Row(
                         Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceEvenly
@@ -247,9 +260,9 @@ fun StatisticsScreen(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    
+
                     Spacer(Modifier.height(8.dp))
-                    
+
                     val palette = listOf(
                         Color(0xFF6366F1), // 인디고
                         Color(0xFF10B981), // 에메랄드
@@ -259,16 +272,16 @@ fun StatisticsScreen(
                     val catSegments = TodoCategory.entries.mapIndexed { i, c ->
                         Segment(items.count { it.category == c }.toFloat(), palette[i % palette.size])
                     }
-                    
+
                     Box(
                         Modifier.fillMaxWidth(),
                         contentAlignment = Alignment.Center
                     ) {
                         AnimatedDonut(segments = catSegments, diameter = 200.dp, stroke = 24.dp)
                     }
-                    
+
                     Spacer(Modifier.height(16.dp))
-                    
+
                     FlowLegend(
                         entries = TodoCategory.entries.mapIndexed { i, c ->
                             LegendEntry(catSegments[i].color, c.name, items.count { it.category == c })
@@ -292,7 +305,7 @@ fun StatisticsScreen(
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
                     )
-                    
+
                     byCategory.forEachIndexed { index, (cat, pair) ->
                         val (d, all) = pair
                         val p = if (all == 0) 0f else d.toFloat() / all
@@ -302,7 +315,7 @@ fun StatisticsScreen(
                             TodoCategory.개인 -> Color(0xFFF59E0B)
                             TodoCategory.기타 -> Color(0xFF8B5CF6)
                         }
-                        
+
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             Row(
                                 Modifier.fillMaxWidth(),
@@ -344,7 +357,7 @@ fun StatisticsScreen(
                                 color = catColor
                             )
                         }
-                        
+
                         if (index < byCategory.size - 1) {
                             Spacer(Modifier.height(12.dp))
                             HorizontalDivider(
@@ -359,6 +372,27 @@ fun StatisticsScreen(
             Spacer(Modifier.height(12.dp))
         }
     }
+}
+
+// ---------------------------------------------------------
+// [추가] 데이터 변환 확장 함수 (필수)
+// ---------------------------------------------------------
+private fun FirestoreTodo.toTodo(): Todo {
+    val category = try {
+        TodoCategory.valueOf(this.category)
+    } catch (e: IllegalArgumentException) {
+        TodoCategory.개인
+    }
+    return Todo(
+        id = this.id,
+        title = this.title,
+        category = category,
+        due = this.due?.let { LocalDate.parse(it) },
+        remind = this.remind,
+        remindTime = this.remindTime,
+        memo = this.memo,
+        done = this.done
+    )
 }
 
 // 데이터 클래스

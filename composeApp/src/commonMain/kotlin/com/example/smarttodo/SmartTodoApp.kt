@@ -18,9 +18,10 @@ fun SmartTodoApp() {
             null // Desktop이나 초기화되지 않은 경우 null
         }
     }
+    // store는 이제 로컬 전용 기능(알림 등)에만 제한적으로 사용되거나, 점차 제거될 수 있습니다.
     val store = remember { TodoStore(notificationManager) }
     val firebaseRepository = remember { getFirebaseRepository() }
-    val authManager = remember { getAuthManager() } // AuthManager 인스턴스 생성
+    val authManager = remember { getAuthManager() }
 
     // 앱 시작 시 로그인 상태 확인
     LaunchedEffect(Unit) {
@@ -29,15 +30,14 @@ fun SmartTodoApp() {
         }
     }
 
-    // 모던하고 일관된 색상 팔레트
     val customColorScheme = lightColorScheme(
-        primary = Color(0xFF6366F1), // 인디고 계열 - 더 모던한 느낌
+        primary = Color(0xFF6366F1),
         onPrimary = Color.White,
         primaryContainer = Color(0xFFE0E7FF),
         onPrimaryContainer = Color(0xFF312E81),
-        secondary = Color(0xFF10B981), // 에메랄드 그린
+        secondary = Color(0xFF10B981),
         onSecondary = Color.White,
-        tertiary = Color(0xFFF59E0B), // 앰버
+        tertiary = Color(0xFFF59E0B),
         onTertiary = Color.White,
         error = Color(0xFFEF4444),
         onError = Color.White,
@@ -73,13 +73,21 @@ fun SmartTodoApp() {
             )
 
             Screen.Category -> CategoryScreen(store = store, onBack = { screen = Screen.Home })
-            Screen.Calendar -> CalendarScreen(store = store, onBack = { screen = Screen.Home })
+
+            Screen.Calendar -> CalendarScreen(
+                repository = firebaseRepository,
+                onBack = { screen = Screen.Home }
+            )
+
+            // [수정 완료] 알림 화면에 repository 연결
             Screen.Notifications -> NotificationScreen(
                 store = store,
-                onBack = { screen = Screen.Home })
+                repository = firebaseRepository, // 여기를 추가했습니다!
+                onBack = { screen = Screen.Home }
+            )
 
             Screen.Stats -> StatisticsScreen(
-                store = store,
+                repository = firebaseRepository,
                 onBackHome = { screen = Screen.Home },
                 onOpenSettings = { screen = Screen.Settings }
             )
