@@ -1,6 +1,4 @@
 // AuthScreen.kt
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
-
 package com.example.smarttodo
 
 import androidx.compose.foundation.background
@@ -19,15 +17,20 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 
-private enum class AuthTab { Login, Register }
+// 간단한 인메모리 사용자 모델 (별도 DB 없이 앱 실행 중에만 유지)
+data class AuthUser(
+    val name: String,
+    val email: String,
+    val password: String
+)
 
 @Composable
 fun AuthScreen(
-    users: MutableList<AuthUser>,
-    onAuthenticated: (User) -> Unit,
+    onAuthenticated: () -> Unit,
     onForgotPassword: () -> Unit
 ) {
     var tab by remember { mutableStateOf(AuthTab.Login) }
+    val users = remember { mutableStateListOf<AuthUser>() } // 회원가입한 계정 목록
     var message by remember { mutableStateOf<String?>(null) }
 
     Scaffold { pad ->
@@ -68,6 +71,7 @@ fun AuthScreen(
                     onForgotPassword = onForgotPassword,
                     onError = { message = it }
                 )
+
                 AuthTab.Register -> RegisterForm(
                     existing = users,
                     onRegistered = { user ->
@@ -78,10 +82,10 @@ fun AuthScreen(
                 )
             }
 
-            message?.takeIf { it.isNotBlank() }?.let { text ->
+            message?.let {
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    text = text,
+                    text = it,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.error,
                     textAlign = TextAlign.Center
@@ -90,6 +94,8 @@ fun AuthScreen(
         }
     }
 }
+
+private enum class AuthTab { Login, Register }
 
 @Composable
 private fun AuthTabs(
@@ -115,7 +121,7 @@ private fun AuthTabs(
 @Composable
 private fun LoginForm(
     users: List<AuthUser>,
-    onAuthenticated: (User) -> Unit,
+    onAuthenticated: () -> Unit,
     onForgotPassword: () -> Unit,
     onError: (String) -> Unit
 ) {
@@ -165,13 +171,7 @@ private fun LoginForm(
                     onError("이메일 또는 비밀번호가 올바르지 않습니다.")
                 } else {
                     onError("")
-                    onAuthenticated(
-                        User(
-                            id = user.email,
-                            email = user.email,
-                            name = user.name
-                        )
-                    )
+                    onAuthenticated()
                 }
             },
             modifier = Modifier.fillMaxWidth(),
@@ -260,15 +260,19 @@ private fun RegisterForm(
                             pw.isBlank() || pw2.isBlank() -> {
                         onError("모든 항목을 입력해 주세요.")
                     }
+
                     pw.length < 8 -> {
                         onError("비밀번호는 8자 이상이어야 합니다.")
                     }
+
                     pw != pw2 -> {
                         onError("비밀번호와 비밀번호 확인이 일치하지 않습니다.")
                     }
+
                     existing.any { it.email == trimmedEmail } -> {
                         onError("이미 가입된 이메일입니다.")
                     }
+
                     else -> {
                         onError("")
                         onRegistered(AuthUser(trimmedName, trimmedEmail, pw))

@@ -6,7 +6,6 @@ package com.example.smarttodo
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -15,8 +14,6 @@ import androidx.compose.runtime.setValue
 fun SmartTodoApp() {
     var screen by remember { mutableStateOf<Screen>(Screen.Onboarding) }
     val store = remember { TodoStore() }
-    val registeredUsers = remember { mutableStateListOf<AuthUser>() }
-    var currentUser by remember { mutableStateOf<User?>(null) }
 
     MaterialTheme {
         when (screen) {
@@ -26,12 +23,8 @@ fun SmartTodoApp() {
             )
 
             Screen.Auth -> AuthScreen(
-                users = registeredUsers,
-                onAuthenticated = { user ->
-                    currentUser = user
-                    screen = Screen.Home
-                },
-                onForgotPassword = { /* TODO: 비밀번호 찾기 */ }
+                onAuthenticated = { screen = Screen.Home },
+                onForgotPassword = { /* 비밀번호 찾기 미구현 */ }
             )
 
             Screen.Home -> HomeScreen(
@@ -68,15 +61,11 @@ fun SmartTodoApp() {
             Screen.Settings -> SettingsScreen(
                 onBack = { screen = Screen.Home },
                 onOpenProfile = { screen = Screen.Profile },
-                onLogout = {
-                    currentUser = null
-                    screen = Screen.Auth
-                }
+                onLogout = { screen = Screen.Auth }
             )
 
             Screen.Profile -> ProfileScreen(
                 store = store,
-                user = currentUser,
                 onBack = { screen = Screen.Settings }
             )
         }

@@ -20,18 +20,18 @@ import kotlinx.datetime.LocalDate
 @Composable
 fun ProfileScreen(
     store: TodoStore,
-    user: User?,
     onBack: () -> Unit
 ) {
-    val userName = user?.name ?: "김철수"
-    val email = user?.email ?: "chulsoo@example.com"
+    // 데모용 사용자 정보(추후 실제 계정 모델로 대체)
+    val userName = "김철수"
+    val email = "chulsoo@example.com"
     val joined = LocalDate(2025, 10, 1)
 
     val items = store.items
     val total = items.size
     val done = items.count { it.done }
     val thisWeek = items.count { it.due?.let { d -> isInThisWeek(d) } == true }
-    val todayAdd = 0 // 데모용
+    val todayAdd = 0 // 샘플
     val rate = if (total == 0) 0 else (done * 100 / total)
 
     Scaffold(
@@ -56,7 +56,7 @@ fun ProfileScreen(
         ) {
             Spacer(Modifier.height(8.dp))
 
-            // 상단 프로필 카드
+            // 상단 프로필 영역
             Card(
                 shape = MaterialTheme.shapes.extraLarge,
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -68,13 +68,15 @@ fun ProfileScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    // 이니셜 배지
                     Surface(
                         shape = MaterialTheme.shapes.extraLarge,
                         color = MaterialTheme.colorScheme.primary,
                         shadowElevation = 2.dp
                     ) {
                         Box(
-                            modifier = Modifier.size(72.dp),
+                            modifier = Modifier
+                                .size(72.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
@@ -100,23 +102,26 @@ fun ProfileScreen(
                     }
 
                     AssistChip(
-                        onClick = { /* TODO: 계정 설정 */ },
+                        onClick = { /* 나중에 계정 설정으로 이동 */ },
                         label = { Text("계정 설정") }
                     )
                 }
             }
 
+            // 요약 통계
             ProfileSummaryRow(
                 total = total,
                 done = done,
                 rate = rate
             )
 
+            // 활동 요약 카드
             ActivitySummaryCard(
                 thisWeek = thisWeek,
                 todayAdd = todayAdd
             )
 
+            // 가입 정보
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
@@ -160,20 +165,17 @@ private fun ProfileSummaryRow(
         ProfileStatCard(
             title = "총 할 일",
             value = "${total}개",
-            highlight = false,
-            modifier = Modifier.weight(1f)
+            highlight = false
         )
         ProfileStatCard(
             title = "완료",
             value = "${done}개",
-            highlight = true,
-            modifier = Modifier.weight(1f)
+            highlight = true
         )
         ProfileStatCard(
             title = "완료율",
             value = "$rate%",
-            highlight = false,
-            modifier = Modifier.weight(1f)
+            highlight = false
         )
     }
 }
@@ -245,7 +247,7 @@ private fun ActivitySummaryCard(
     }
 }
 
-// Clock.System 사용하지 않는 단순 버전 (데모)
+// Clock.System 사용하지 않는 단순 버전
 private fun isInThisWeek(date: LocalDate): Boolean {
     return true
 }
