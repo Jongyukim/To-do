@@ -6,8 +6,10 @@
 package com.example.smarttodo
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -19,12 +21,17 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.filled.Work
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
@@ -35,12 +42,11 @@ import kotlinx.coroutines.launch
 import kotlinx.datetime.*
 import java.util.UUID
 
-// Extension function for String to LocalDate conversion
+// Extension function & Mappers
 private fun String.toLocalDate(): LocalDate {
     return LocalDate.parse(this)
 }
 
-// Mapper functions to convert between UI model and Firestore model
 private fun Todo.toFirestoreTodo(): FirestoreTodo {
     return FirestoreTodo(
         id = this.id,
@@ -55,24 +61,22 @@ private fun Todo.toFirestoreTodo(): FirestoreTodo {
 }
 
 private fun FirestoreTodo.toTodo(): Todo {
-    // Handle potential errors if a string value from Firestore doesn't match the enum
     val category = try {
         TodoCategory.valueOf(this.category)
     } catch (e: IllegalArgumentException) {
-        TodoCategory.개인 // Default to 'Personal' category on error
+        TodoCategory.개인
     }
     return Todo(
         id = this.id,
         title = this.title,
         category = category,
-        due = this.due?.toLocalDate(),
+        due = this.due?.let { LocalDate.parse(it) },
         remind = this.remind,
         remindTime = this.remindTime,
         memo = this.memo,
         done = this.done
     )
 }
-
 
 @Composable
 fun HomeScreen(
@@ -84,19 +88,18 @@ fun HomeScreen(
     onOpenStats: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
 ) {
-    // 편집 시트 상태
     var showEditor by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<Todo?>(null) }
 
     var query by remember { mutableStateOf("") }
     var filter by remember { mutableStateOf(Filter.All) }
 
-    // State for holding todos fetched from Firebase
+    // [추가] 카테고리 필터 상태 (null이면 전체 보기)
+    var selectedCategory by remember { mutableStateOf<TodoCategory?>(null) }
+
     var allTodos by remember { mutableStateOf<List<Todo>>(emptyList()) }
     val coroutineScope = rememberCoroutineScope()
 
-    // Function to refresh the todo list from Firestore
-    // [수정 핵심] 데이터를 불러올 때 날짜 순서대로 정렬 (날짜 없는 건 맨 뒤로)
     val refreshTodos = {
         coroutineScope.launch {
             try {
@@ -109,21 +112,28 @@ fun HomeScreen(
         }
     }
 
-    // Fetch initial data
     LaunchedEffect(Unit) {
         refreshTodos()
     }
 
     val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
-    val filtered = allTodos.filter {
-        val matchQuery = query.isBlank() || it.title.contains(query, true)
+
+    // [수정] 필터링 로직에 카테고리 조건 추가
+    val filtered = allTodos.filter { todo ->
+        val matchQuery = query.isBlank() || todo.title.contains(query, true)
+
+        // 상단 탭 필터 (전체/오늘/다가오는/완료됨)
         val matchFilter = when (filter) {
             Filter.All -> true
-            Filter.Today -> it.due == today
-            Filter.Upcoming -> it.due?.let { d -> d > today } ?: false
-            Filter.Done -> it.done
+            Filter.Today -> todo.due == today
+            Filter.Upcoming -> todo.due?.let { d -> d > today } ?: false
+            Filter.Done -> todo.done
         }
-        matchQuery && matchFilter
+
+        // [추가] 카테고리 필터 (선택 안함 OR 선택된 카테고리와 일치)
+        val matchCategory = selectedCategory == null || todo.category == selectedCategory
+
+        matchQuery && matchFilter && matchCategory
     }
 
     Scaffold(
@@ -149,7 +159,7 @@ fun HomeScreen(
             NavigationBar {
                 NavigationBarItem(
                     selected = true,
-                    onClick = { /* stay */ },
+                    onClick = { },
                     icon = { Icon(Icons.Filled.Home, null) },
                     label = { Text("홈") }
                 )
@@ -189,6 +199,17 @@ fun HomeScreen(
                 )
             }
 
+            // [추가] 카테고리 필터 섹션 (네모난 박스들)
+            item {
+                CategoryFilterSection(
+                    selected = selectedCategory,
+                    onSelect = {
+                        // 이미 선택된 걸 또 누르면 해제(전체보기), 아니면 선택
+                        selectedCategory = if (selectedCategory == it) null else it
+                    }
+                )
+            }
+
             // 검색
             item {
                 OutlinedTextField(
@@ -200,7 +221,7 @@ fun HomeScreen(
                 Spacer(Modifier.height(10.dp))
             }
 
-            // 필터 칩
+            // 필터 칩 (전체/오늘/다가오는/완료됨)
             item {
                 FilterChips(selected = filter, onSelect = { filter = it }, modifier = Modifier.padding(horizontal = 12.dp))
                 Spacer(Modifier.height(8.dp))
@@ -240,11 +261,9 @@ fun HomeScreen(
             onSubmit = { t ->
                 coroutineScope.launch {
                     if (editing == null) {
-                        // For new items, ensure ID is set
                         val newTodo = if(t.id.isBlank()) t.copy(id = UUID.randomUUID().toString()) else t
                         repository.addTodo(newTodo.toFirestoreTodo())
                     } else {
-                        // For existing items, just update
                         repository.updateTodo(t.toFirestoreTodo())
                     }
                     showEditor = false
@@ -255,7 +274,105 @@ fun HomeScreen(
     }
 }
 
-/* ───────── 리스트 아이템 ───────── */
+// ──────────────────────────────────────────────
+// Sub Components
+// ──────────────────────────────────────────────
+
+// [추가] 카테고리 필터 섹션 UI
+@Composable
+private fun CategoryFilterSection(
+    selected: TodoCategory?,
+    onSelect: (TodoCategory) -> Unit
+) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp)
+    ) {
+        Text(
+            text = "카테고리별 보기",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+        )
+
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // 모든 카테고리를 순회하며 네모난 카드 생성
+            TodoCategory.entries.forEach { cat ->
+                val isSelected = (selected == cat)
+                val color = when (cat) {
+                    TodoCategory.학업 -> Color(0xFF6366F1)
+                    TodoCategory.업무 -> Color(0xFF10B981)
+                    TodoCategory.개인 -> Color(0xFFF59E0B)
+                    TodoCategory.기타 -> Color(0xFF8B5CF6)
+                }
+                val icon = when (cat) {
+                    TodoCategory.학업 -> Icons.Filled.School
+                    TodoCategory.업무 -> Icons.Filled.Work
+                    TodoCategory.개인 -> Icons.Filled.Person
+                    TodoCategory.기타 -> Icons.Filled.PushPin
+                }
+
+                CategoryFilterCard(
+                    title = cat.name,
+                    icon = icon,
+                    color = color,
+                    isSelected = isSelected,
+                    onClick = { onSelect(cat) },
+                    modifier = Modifier.weight(1f) // 균등하게 꽉 채우기
+                )
+            }
+        }
+    }
+}
+
+// [추가] 네모난 카테고리 필터 카드
+@Composable
+private fun CategoryFilterCard(
+    title: String,
+    icon: ImageVector,
+    color: Color,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        onClick = onClick,
+        modifier = modifier.height(80.dp), // 높이 고정
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected) color else MaterialTheme.colorScheme.surface,
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = if (isSelected) 4.dp else 1.dp
+        ),
+        border = if (isSelected) null else androidx.compose.foundation.BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.3f))
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = title,
+                tint = if (isSelected) Color.White else color
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface
+            )
+        }
+    }
+}
 
 @Composable
 private fun TodoRow(
@@ -291,7 +408,6 @@ private fun TodoRow(
             },
             supportingContent = {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    // 카테고리 칩
                     AssistChip(
                         onClick = {},
                         label = { Text(todo.category.name) },
@@ -302,7 +418,6 @@ private fun TodoRow(
                             else MaterialTheme.colorScheme.onSurface
                         )
                     )
-                    // 마감일 칩
                     val dueText = todo.due?.toString() ?: "마감 없음"
                     AssistChip(
                         onClick = {},
@@ -312,7 +427,6 @@ private fun TodoRow(
                             else MaterialTheme.colorScheme.surfaceVariant
                         )
                     )
-                    // 완료 표시 칩 (완료일은 여기선 표시 생략)
                     if (todo.done) {
                         AssistChip(
                             onClick = {},
@@ -340,7 +454,6 @@ private fun TodoRow(
         )
     }
 }
-/* ───────── KPI/Quick/Filter/Empty ───────── */
 
 @Composable
 private fun KPISection(totalToday: Int, activeCount: Int, doneRate: Int) {
@@ -348,21 +461,21 @@ private fun KPISection(totalToday: Int, activeCount: Int, doneRate: Int) {
         KPIBadge(
             title = "오늘",
             value = totalToday.toString(),
-            color = Color(0xFF6366F1), // Primary와 일치
+            color = Color(0xFF6366F1),
             icon = Icons.Filled.CalendarMonth,
             modifier = Modifier.weight(1f)
         )
         KPIBadge(
             title = "진행",
             value = activeCount.toString(),
-            color = Color(0xFF10B981), // Secondary와 일치
+            color = Color(0xFF10B981),
             icon = Icons.Filled.Assessment,
             modifier = Modifier.weight(1f)
         )
         KPIBadge(
             title = "완료율",
             value = "$doneRate%",
-            color = Color(0xFFF59E0B), // Tertiary와 일치
+            color = Color(0xFFF59E0B),
             icon = Icons.Filled.Assessment,
             modifier = Modifier.weight(1f)
         )
@@ -374,16 +487,14 @@ private fun KPIBadge(
     title: String,
     value: String,
     color: Color,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     modifier: Modifier = Modifier
 ) {
     Card(
         modifier = modifier,
         shape = MaterialTheme.shapes.large,
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color.White
-        )
+        colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -396,26 +507,11 @@ private fun KPIBadge(
                 modifier = Modifier.size(48.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        icon,
-                        contentDescription = null,
-                        tint = color,
-                        modifier = Modifier.size(28.dp)
-                    )
+                    Icon(icon, null, tint = color, modifier = Modifier.size(28.dp))
                 }
             }
-            Text(
-                value,
-                style = MaterialTheme.typography.headlineLarge,
-                color = color,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                title,
-                style = MaterialTheme.typography.labelMedium,
-                color = color.copy(alpha = 0.8f),
-                fontWeight = FontWeight.Medium
-            )
+            Text(value, style = MaterialTheme.typography.headlineLarge, color = color, fontWeight = FontWeight.Bold)
+            Text(title, style = MaterialTheme.typography.labelMedium, color = color.copy(alpha = 0.8f), fontWeight = FontWeight.Medium)
         }
     }
 }
@@ -428,17 +524,13 @@ private fun QuickActions(
     onProfile: () -> Unit
 ) {
     Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
         shape = MaterialTheme.shapes.extraLarge,
         color = MaterialTheme.colorScheme.surface,
         shadowElevation = 2.dp
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 12.dp, horizontal = 8.dp),
+            modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp, horizontal = 8.dp),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
             ActionIcon("카테고리", Icons.Filled.Category, onCategory, Color(0xFF6366F1))
@@ -451,16 +543,8 @@ private fun QuickActions(
 }
 
 @Composable
-private fun ActionIcon(
-    label: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    onClick: () -> Unit,
-    iconColor: Color
-) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.padding(horizontal = 4.dp)
-    ) {
+private fun ActionIcon(label: String, icon: ImageVector, onClick: () -> Unit, iconColor: Color) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = 4.dp)) {
         Surface(
             onClick = onClick,
             shape = MaterialTheme.shapes.large,
@@ -468,21 +552,11 @@ private fun ActionIcon(
             modifier = Modifier.size(56.dp)
         ) {
             Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    icon,
-                    contentDescription = label,
-                    tint = iconColor,
-                    modifier = Modifier.size(28.dp)
-                )
+                Icon(icon, null, tint = iconColor, modifier = Modifier.size(28.dp))
             }
         }
         Spacer(Modifier.height(8.dp))
-        Text(
-            label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-            fontWeight = FontWeight.Medium
-        )
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f), fontWeight = FontWeight.Medium)
     }
 }
 
@@ -522,27 +596,12 @@ private fun EmptyState() {
             shadowElevation = 0.dp
         ) {
             Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    Icons.Filled.Add,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
-                    modifier = Modifier.size(48.dp)
-                )
+                Icon(Icons.Filled.Add, null, tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f), modifier = Modifier.size(48.dp))
             }
         }
         Spacer(Modifier.height(20.dp))
-        Text(
-            "할 일이 없습니다",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface
-        )
+        Text("할 일이 없습니다", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
         Spacer(Modifier.height(8.dp))
-        Text(
-            "새로운 할 일을 추가해보세요",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center
-        )
+        Text("새로운 할 일을 추가해보세요", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
     }
 }
