@@ -3,6 +3,8 @@
 package com.example.smarttodo
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Person
@@ -10,20 +12,35 @@ import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Work
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.smarttodo.data.FirebaseRepository
+import com.example.smarttodo.data.FirestoreTodo
+import kotlinx.datetime.LocalDate
 
 @Composable
 fun CategoryScreen(
-    store: TodoStore,
+    repository: FirebaseRepository, // [수정] store 대신 repository 사용
     onBack: () -> Unit
 ) {
-    val stats = remember(store.items) { computeCategoryStats(store) }
+    // [추가] Firebase 데이터를 담을 변수
+    var allTodos by remember { mutableStateOf<List<Todo>>(emptyList()) }
+
+    // [추가] 화면 켜질 때 데이터 불러오기
+    LaunchedEffect(Unit) {
+        try {
+            allTodos = repository.getAllTodos().map { it.toTodo() }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    // [수정] 불러온 allTodos를 기준으로 통계 계산
+    val stats = remember(allTodos) { computeCategoryStats(allTodos) }
 
     Scaffold(
         topBar = {
@@ -41,7 +58,8 @@ fun CategoryScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(pad)
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = 16.dp)
+                .verticalScroll(rememberScrollState()), // 스크롤 가능하게 변경
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // 헤더 카드
@@ -68,9 +86,9 @@ private data class CategoryStat(
     val rate: Int get() = if (total == 0) 0 else (done * 100 / total)
 }
 
-private fun computeCategoryStats(store: TodoStore): List<CategoryStat> {
-    val items = store.items
-    return TodoCategory.values().map { cat ->
+// [수정] 매개변수를 TodoStore -> List<Todo>로 변경
+private fun computeCategoryStats(items: List<Todo>): List<CategoryStat> {
+    return TodoCategory.entries.map { cat -> // .values() 대신 .entries 사용 (권장)
         val all = items.filter { it.category == cat }
         val done = all.count { it.done }
         CategoryStat(category = cat, done = done, total = all.size)
@@ -195,4 +213,25 @@ private fun CategoryCard(stat: CategoryStat) {
             }
         }
     }
+}
+
+// ---------------------------------------------------------
+// [추가] 데이터 매퍼
+// ---------------------------------------------------------
+private fun FirestoreTodo.toTodo(): Todo {
+    val category = try {
+        TodoCategory.valueOf(this.category)
+    } catch (e: IllegalArgumentException) {
+        TodoCategory.개인
+    }
+    return Todo(
+        id = this.id,
+        title = this.title,
+        category = category,
+        due = this.due?.let { LocalDate.parse(it) },
+        remind = this.remind,
+        remindTime = this.remindTime,
+        memo = this.memo,
+        done = this.done
+    )
 }

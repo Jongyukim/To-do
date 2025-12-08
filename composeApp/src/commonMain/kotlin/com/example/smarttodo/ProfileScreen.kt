@@ -14,23 +14,35 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.smarttodo.data.FirebaseRepository
+import com.example.smarttodo.data.FirestoreTodo
 import kotlinx.datetime.*
 
 @Composable
 fun ProfileScreen(
-    store: TodoStore,
+    repository: FirebaseRepository, // [수정] store 대신 repository 사용
     onBack: () -> Unit,
     authManager: AuthManager
 ) {
     val userName = authManager.getCurrentUserDisplayName() ?: "User"
     val email = authManager.getCurrentUserEmail() ?: "N/A"
-    // val joined = LocalDate(2025, 10, 1) // Firebase Auth에서는 가입일 직접 제공 안 함, 필요 시 Firestore에 저장
 
-    val items = store.items
+    // [추가] Firebase 데이터를 담을 변수
+    var items by remember { mutableStateOf<List<Todo>>(emptyList()) }
+
+    // [추가] 화면 켜질 때 데이터 불러오기
+    LaunchedEffect(Unit) {
+        try {
+            items = repository.getAllTodos().map { it.toTodo() }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     val total = items.size
     val done = items.count { it.done }
     val thisWeek = items.count { it.due?.let { d -> isInThisWeek(d) } == true }
-    val todayAdd = 0 // 샘플
+    val todayAdd = 0 // 샘플 (작성일 데이터가 없어서 0으로 둠)
     val rate = if (total == 0) 0 else (done * 100 / total)
 
     Scaffold(
@@ -54,7 +66,7 @@ fun ProfileScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Spacer(Modifier.height(8.dp))
-            
+
             // 상단 프로필 영역
             Card(
                 shape = MaterialTheme.shapes.extraLarge,
@@ -83,7 +95,6 @@ fun ProfileScreen(
                     }
                     Text(userName, fontWeight = FontWeight.SemiBold)
                     Text(email, color = Color.Gray)
-                    // AssistChip(onClick = {}, label = { Text("가입일: ${joined.year}년 ${joined.monthNumber}월") })
                 }
             }
 
@@ -125,17 +136,19 @@ fun ProfileScreen(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Text("주요 카테고리", style = MaterialTheme.typography.titleMedium)
-                    // values() 경고는 무시 가능. 바꾸려면 entries 사용.
-                    for (c in TodoCategory.values()) {
+                    // entries 권장
+                    for (c in TodoCategory.entries) {
                         val catAll = items.count { it.category == c }
                         val catDone = items.count { it.category == c && it.done }
                         val p = if (catAll == 0) 0f else catDone.toFloat() / catAll
+
+                        // 데이터가 있는 카테고리만 보여주거나, 없어도 보여주려면 유지
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(c.name, modifier = Modifier.width(56.dp))
                             LinearProgressIndicator(
                                 progress = { p },
                                 modifier = Modifier
-                                    .weight(1f)  
+                                    .weight(1f)
                                     .height(10.dp),
                                 trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
                             )
@@ -157,7 +170,7 @@ fun ProfileScreen(
                         Spacer(Modifier.weight(1f))
                         AssistChip(onClick = {}, label = { Text("2/4") })
                     }
-                    AchievementRow("첫 할 일 완료", achieved = total > 0)
+                    AchievementRow("첫 할 일 완료", achieved = done > 0)
                     AchievementRow("연속 3일", achieved = false)
                     AchievementRow("10개 완료", achieved = done >= 10)
                     AchievementRow("완벽주의자(80%)", achieved = rate >= 80)
@@ -205,7 +218,7 @@ fun ProfileScreen(
 private fun StatGrid(total: Int, done: Int, todayAdd: Int, week: Int) {
     Column(Modifier.fillMaxWidth().padding(16.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            SmallStatCard("전체 할 일", total, modifier = Modifier.weight(1f))   // ✅ weight는 부모 Row에서
+            SmallStatCard("전체 할 일", total, modifier = Modifier.weight(1f))
             SmallStatCard("완료된 일", done, modifier = Modifier.weight(1f))
         }
         Spacer(Modifier.height(12.dp))
@@ -294,7 +307,7 @@ private fun AchievementRow(title: String, achieved: Boolean) {
     }
 }
 
-/* ---------- 날짜 유틸 ---------- */
+/* ---------- 날짜 유틸 & 매퍼 ---------- */
 
 private fun isInThisWeek(date: LocalDate): Boolean {
     val tz = TimeZone.currentSystemDefault()
@@ -302,4 +315,23 @@ private fun isInThisWeek(date: LocalDate): Boolean {
     val start = today.minus(DatePeriod(days = today.dayOfWeek.isoDayNumber - 1)) // 월요일
     val end = start.plus(DatePeriod(days = 6))
     return date >= start && date <= end
+}
+
+// [추가] 데이터 변환 매퍼 (필수)
+private fun FirestoreTodo.toTodo(): Todo {
+    val category = try {
+        TodoCategory.valueOf(this.category)
+    } catch (e: IllegalArgumentException) {
+        TodoCategory.개인
+    }
+    return Todo(
+        id = this.id,
+        title = this.title,
+        category = category,
+        due = this.due?.let { LocalDate.parse(it) },
+        remind = this.remind,
+        remindTime = this.remindTime,
+        memo = this.memo,
+        done = this.done
+    )
 }

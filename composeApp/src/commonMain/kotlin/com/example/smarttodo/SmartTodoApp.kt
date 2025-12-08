@@ -72,17 +72,20 @@ fun SmartTodoApp() {
                 onOpenProfile = { screen = Screen.Profile }
             )
 
-            Screen.Category -> CategoryScreen(store = store, onBack = { screen = Screen.Home })
+            // [수정 완료] 카테고리 화면에 repository 연결
+            Screen.Category -> CategoryScreen(
+                repository = firebaseRepository,
+                onBack = { screen = Screen.Home }
+            )
 
             Screen.Calendar -> CalendarScreen(
                 repository = firebaseRepository,
                 onBack = { screen = Screen.Home }
             )
 
-            // [수정 완료] 알림 화면에 repository 연결
             Screen.Notifications -> NotificationScreen(
                 store = store,
-                repository = firebaseRepository, // 여기를 추가했습니다!
+                repository = firebaseRepository,
                 onBack = { screen = Screen.Home }
             )
 
@@ -102,7 +105,7 @@ fun SmartTodoApp() {
             )
 
             Screen.Profile -> ProfileScreen(
-                store = store,
+                repository = firebaseRepository,
                 onBack = { screen = Screen.Settings },
                 authManager = authManager
             )

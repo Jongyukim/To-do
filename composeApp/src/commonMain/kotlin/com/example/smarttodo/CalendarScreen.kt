@@ -3,6 +3,7 @@
 package com.example.smarttodo
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -19,35 +20,43 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.smarttodo.data.FirebaseRepository
 import com.example.smarttodo.data.FirestoreTodo
+import kotlinx.coroutines.launch
 import kotlinx.datetime.*
 
 @Composable
 fun CalendarScreen(
-    repository: FirebaseRepository, // [수정] store 대신 repository 사용
+    repository: FirebaseRepository,
     onBack: () -> Unit
 ) {
+    val scope = rememberCoroutineScope() // [추가] 비동기 작업을 위한 스코프
     val tz = TimeZone.currentSystemDefault()
     val today = remember { Clock.System.now().toLocalDateTime(tz).date }
 
     var current by remember { mutableStateOf(today) }   // 현재 보이는 월
     var selected by remember { mutableStateOf(today) }  // 선택된 날짜
 
-    // [추가] Firebase 데이터를 담을 변수
+    // Firebase 데이터를 담을 변수
     var allTodos by remember { mutableStateOf<List<Todo>>(emptyList()) }
 
-    // [추가] 화면 켜질 때 데이터 불러오기
-    LaunchedEffect(Unit) {
-        try {
-            allTodos = repository.getAllTodos().map { it.toTodo() }
-        } catch (e: Exception) {
-            e.printStackTrace()
+    // 데이터 불러오는 함수 (새로고침용)
+    fun refreshData() {
+        scope.launch {
+            try {
+                allTodos = repository.getAllTodos().map { it.toTodo() }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
+    }
+
+    // 화면 켜질 때 데이터 불러오기
+    LaunchedEffect(Unit) {
+        refreshData()
     }
 
     val ym = YearMonthK(current.year, current.month)
     val monthCells = remember(ym) { buildMonthCells(ym) }
 
-    // [수정] store.items 대신 allTodos 사용
     val dayTodos = remember(selected, allTodos) {
         allTodos.filter { it.due == selected }
     }
@@ -127,7 +136,6 @@ fun CalendarScreen(
                                 day = day,
                                 isToday = day == today,
                                 isSelected = day == selected,
-                                // [수정] store.items 대신 allTodos 사용
                                 hasTodos = day != null && allTodos.any { it.due == day },
                                 onClick = {
                                     day?.let {
@@ -174,7 +182,17 @@ fun CalendarScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     dayTodos.forEach { todo ->
-                        TodoCardCompact(todo)
+                        // [수정] 체크박스 동작 연결
+                        TodoCardCompact(
+                            todo = todo,
+                            onToggle = {
+                                scope.launch {
+                                    val updatedTodo = todo.copy(done = !todo.done)
+                                    repository.updateTodo(updatedTodo.toFirestoreTodo())
+                                    refreshData() // 목록 새로고침
+                                }
+                            }
+                        )
                     }
                 }
             }
@@ -241,7 +259,10 @@ private fun DayCell(
 }
 
 @Composable
-private fun TodoCardCompact(todo: Todo) {
+private fun TodoCardCompact(
+    todo: Todo,
+    onToggle: () -> Unit // [추가] 토글 콜백
+) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.large,
@@ -256,7 +277,7 @@ private fun TodoCardCompact(todo: Todo) {
             leadingContent = {
                 Checkbox(
                     checked = todo.done,
-                    onCheckedChange = { /* read-only */ },
+                    onCheckedChange = { onToggle() }, // [수정] 클릭 시 onToggle 실행
                     colors = CheckboxDefaults.colors(
                         checkedColor = MaterialTheme.colorScheme.primary
                     )
@@ -306,6 +327,19 @@ private fun FirestoreTodo.toTodo(): Todo {
         title = this.title,
         category = category,
         due = this.due?.let { LocalDate.parse(it) },
+        remind = this.remind,
+        remindTime = this.remindTime,
+        memo = this.memo,
+        done = this.done
+    )
+}
+
+private fun Todo.toFirestoreTodo(): FirestoreTodo {
+    return FirestoreTodo(
+        id = this.id,
+        title = this.title,
+        category = this.category.name,
+        due = this.due?.toString(),
         remind = this.remind,
         remindTime = this.remindTime,
         memo = this.memo,
