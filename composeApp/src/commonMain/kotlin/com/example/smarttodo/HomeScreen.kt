@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -87,7 +88,6 @@ fun HomeScreen(
     var showEditor by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<Todo?>(null) }
 
-    var tabIndex by remember { mutableIntStateOf(0) }
     var query by remember { mutableStateOf("") }
     var filter by remember { mutableStateOf(Filter.All) }
 
@@ -96,9 +96,16 @@ fun HomeScreen(
     val coroutineScope = rememberCoroutineScope()
 
     // Function to refresh the todo list from Firestore
+    // [수정 핵심] 데이터를 불러올 때 날짜 순서대로 정렬 (날짜 없는 건 맨 뒤로)
     val refreshTodos = {
         coroutineScope.launch {
-            allTodos = repository.getAllTodos().map { it.toTodo() }
+            try {
+                allTodos = repository.getAllTodos()
+                    .map { it.toTodo() }
+                    .sortedWith(compareBy<Todo, LocalDate?>(nullsLast()) { it.due })
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 
@@ -119,7 +126,7 @@ fun HomeScreen(
         matchQuery && matchFilter
     }
 
-        Scaffold(
+    Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("스마트 To-Do", fontWeight = FontWeight.Bold) },
@@ -187,7 +194,8 @@ fun HomeScreen(
                 OutlinedTextField(
                     value = query, onValueChange = { query = it },
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                    placeholder = { Text("할 일 검색…") }, singleLine = true
+                    placeholder = { Text("할 일 검색…") }, singleLine = true,
+                    leadingIcon = { Icon(Icons.Filled.Search, null) }
                 )
                 Spacer(Modifier.height(10.dp))
             }
@@ -231,7 +239,7 @@ fun HomeScreen(
             onDismiss = { showEditor = false },
             onSubmit = { t ->
                 coroutineScope.launch {
-                     if (editing == null) {
+                    if (editing == null) {
                         // For new items, ensure ID is set
                         val newTodo = if(t.id.isBlank()) t.copy(id = UUID.randomUUID().toString()) else t
                         repository.addTodo(newTodo.toFirestoreTodo())

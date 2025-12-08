@@ -11,6 +11,10 @@ import com.example.smarttodo.data.getFirebaseRepository
 @Composable
 fun SmartTodoApp() {
     var screen by remember { mutableStateOf<Screen>(Screen.Onboarding) }
+
+    // [추가] 프로필 화면 진입 전, 이전 화면을 기억하기 위한 변수
+    var previousScreen by remember { mutableStateOf<Screen>(Screen.Home) }
+
     val notificationManager = remember {
         try {
             getNotificationManager()
@@ -69,10 +73,13 @@ fun SmartTodoApp() {
                 onOpenAlarm = { screen = Screen.Notifications },
                 onOpenStats = { screen = Screen.Stats },
                 onOpenSettings = { screen = Screen.Settings },
-                onOpenProfile = { screen = Screen.Profile }
+                onOpenProfile = {
+                    // [수정] 홈에서 프로필로 갈 때: "홈에서 왔다"고 기록
+                    previousScreen = Screen.Home
+                    screen = Screen.Profile
+                }
             )
 
-            // [수정 완료] 카테고리 화면에 repository 연결
             Screen.Category -> CategoryScreen(
                 repository = firebaseRepository,
                 onBack = { screen = Screen.Home }
@@ -97,7 +104,11 @@ fun SmartTodoApp() {
 
             Screen.Settings -> SettingsScreen(
                 onBack = { screen = Screen.Home },
-                onOpenProfile = { screen = Screen.Profile },
+                onOpenProfile = {
+                    // [수정] 설정에서 프로필로 갈 때: "설정에서 왔다"고 기록
+                    previousScreen = Screen.Settings
+                    screen = Screen.Profile
+                },
                 onLogout = {
                     authManager.signOut()
                     screen = Screen.Auth
@@ -106,7 +117,8 @@ fun SmartTodoApp() {
 
             Screen.Profile -> ProfileScreen(
                 repository = firebaseRepository,
-                onBack = { screen = Screen.Settings },
+                // [수정] 뒤로가기 누르면 아까 기록해둔 곳(홈 또는 설정)으로 이동
+                onBack = { screen = previousScreen },
                 authManager = authManager
             )
         }

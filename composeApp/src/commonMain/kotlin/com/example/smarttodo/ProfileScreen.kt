@@ -20,17 +20,17 @@ import kotlinx.datetime.*
 
 @Composable
 fun ProfileScreen(
-    repository: FirebaseRepository, // [수정] store 대신 repository 사용
+    repository: FirebaseRepository,
     onBack: () -> Unit,
     authManager: AuthManager
 ) {
     val userName = authManager.getCurrentUserDisplayName() ?: "User"
     val email = authManager.getCurrentUserEmail() ?: "N/A"
 
-    // [추가] Firebase 데이터를 담을 변수
+    // Firebase 데이터를 담을 변수
     var items by remember { mutableStateOf<List<Todo>>(emptyList()) }
 
-    // [추가] 화면 켜질 때 데이터 불러오기
+    // 화면 켜질 때 데이터 불러오기
     LaunchedEffect(Unit) {
         try {
             items = repository.getAllTodos().map { it.toTodo() }
@@ -42,8 +42,17 @@ fun ProfileScreen(
     val total = items.size
     val done = items.count { it.done }
     val thisWeek = items.count { it.due?.let { d -> isInThisWeek(d) } == true }
-    val todayAdd = 0 // 샘플 (작성일 데이터가 없어서 0으로 둠)
+    val todayAdd = 0 // 샘플
     val rate = if (total == 0) 0 else (done * 100 / total)
+
+    // [수정 핵심] 업적 달성 여부 실시간 계산
+    val ach1 = done > 0                     // 첫 할 일 완료
+    val ach2 = false                        // 연속 3일 (로직 미구현으로 false 고정)
+    val ach3 = done >= 10                   // 10개 완료
+    val ach4 = rate >= 80 && total > 0      // 완벽주의자 (80% 이상)
+
+    // 달성된 개수 카운트
+    val achievedCount = listOf(ach1, ach2, ach3, ach4).count { it }
 
     Scaffold(
         topBar = {
@@ -136,13 +145,10 @@ fun ProfileScreen(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Text("주요 카테고리", style = MaterialTheme.typography.titleMedium)
-                    // entries 권장
                     for (c in TodoCategory.entries) {
                         val catAll = items.count { it.category == c }
                         val catDone = items.count { it.category == c && it.done }
                         val p = if (catAll == 0) 0f else catDone.toFloat() / catAll
-
-                        // 데이터가 있는 카테고리만 보여주거나, 없어도 보여주려면 유지
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(c.name, modifier = Modifier.width(56.dp))
                             LinearProgressIndicator(
@@ -159,7 +165,7 @@ fun ProfileScreen(
                 }
             }
 
-            // 업적(샘플)
+            // 업적
             Card(
                 shape = MaterialTheme.shapes.extraLarge,
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -168,12 +174,13 @@ fun ProfileScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("업적", style = MaterialTheme.typography.titleMedium)
                         Spacer(Modifier.weight(1f))
-                        AssistChip(onClick = {}, label = { Text("2/4") })
+                        // [수정] 계산된 개수 표시 ($achievedCount/4)
+                        AssistChip(onClick = {}, label = { Text("$achievedCount/4") })
                     }
-                    AchievementRow("첫 할 일 완료", achieved = done > 0)
-                    AchievementRow("연속 3일", achieved = false)
-                    AchievementRow("10개 완료", achieved = done >= 10)
-                    AchievementRow("완벽주의자(80%)", achieved = rate >= 80)
+                    AchievementRow("첫 할 일 완료", achieved = ach1)
+                    AchievementRow("연속 3일", achieved = ach2)
+                    AchievementRow("10개 완료", achieved = ach3)
+                    AchievementRow("완벽주의자(80%)", achieved = ach4)
                 }
             }
 
@@ -317,7 +324,6 @@ private fun isInThisWeek(date: LocalDate): Boolean {
     return date >= start && date <= end
 }
 
-// [추가] 데이터 변환 매퍼 (필수)
 private fun FirestoreTodo.toTodo(): Todo {
     val category = try {
         TodoCategory.valueOf(this.category)

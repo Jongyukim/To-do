@@ -16,19 +16,23 @@ import androidx.compose.ui.unit.dp
 import com.example.smarttodo.data.FirebaseRepository
 import com.example.smarttodo.data.FirestoreTodo
 import kotlinx.coroutines.launch
-import kotlinx.datetime.LocalDate
+import kotlinx.datetime.*
 
 @Composable
 fun NotificationScreen(
     store: TodoStore,
-    repository: FirebaseRepository, // [수정] repository 추가
+    repository: FirebaseRepository,
     onBack: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
-    // [추가] Firebase 데이터를 담을 변수
     var allTodos by remember { mutableStateOf<List<Todo>>(emptyList()) }
 
-    // [추가] 화면 켜질 때 데이터 불러오기
+    // 현재 시간 정보 가져오기
+    val now = Clock.System.now()
+    val tz = TimeZone.currentSystemDefault()
+    val today = now.toLocalDateTime(tz).date
+    val currentTime = now.toLocalDateTime(tz).time
+
     LaunchedEffect(Unit) {
         try {
             allTodos = repository.getAllTodos().map { it.toTodo() }
@@ -37,10 +41,42 @@ fun NotificationScreen(
         }
     }
 
-    // [수정] 불러온 데이터에서 알림이 켜진 것만 필터링
-    val scheduled = allTodos.filter { it.remind }
+    // [수정 핵심] 필터링 후 -> 날짜 순서대로 정렬 추가 (.sortedWith)
+    val scheduled = allTodos.filter { todo ->
+        // 1. 알림 기능이 켜져 있거나, 시간이 설정된 것만 대상
+        val isNotifiable = todo.remind || !todo.remindTime.isNullOrBlank()
+        if (!isNotifiable) return@filter false
+
+        // 2. 날짜 비교 (과거인지 확인)
+        val dueDate = todo.due
+
+        if (dueDate == null) {
+            true // 날짜가 없으면 일단 보여줌
+        } else if (dueDate < today) {
+            false // 1. 날짜가 어제보다 전이면 -> 숨김
+        } else if (dueDate == today) {
+            // 2. 오늘 날짜라면 -> 시간이 지났는지 확인
+            val timeStr = todo.remindTime
+            if (timeStr.isNullOrBlank()) {
+                true // 시간 설정 없으면 오늘 하루 종일 표시
+            } else {
+                try {
+                    val dueTime = LocalTime.parse(timeStr)
+                    dueTime > currentTime // 현재 시간보다 미래인 경우만 표시
+                } catch (e: Exception) {
+                    true // 시간 형식 에러나면 그냥 표시
+                }
+            }
+        } else {
+            true // 3. 미래 날짜면 -> 표시
+        }
+    }.sortedWith(
+        compareBy<Todo> { it.due }        // 1순위: 날짜 빠른 순
+            .thenBy { it.remindTime }     // 2순위: 시간 빠른 순
+    )
+
     val total = allTodos.size
-    val scheduledCount = scheduled.size
+    val activeCount = scheduled.count { it.remind }
 
     Scaffold(
         topBar = {
@@ -62,7 +98,7 @@ fun NotificationScreen(
             Spacer(Modifier.height(4.dp))
 
             // 요약 카드
-            SummaryCard(scheduledCount = scheduledCount, total = total)
+            SummaryCard(activeCount = activeCount, total = total)
 
             // 섹션 타이틀
             Row(
@@ -70,7 +106,7 @@ fun NotificationScreen(
             ) {
                 Text("예정된 알림", style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.weight(1f))
-                AssistChip(onClick = {}, label = { Text("$scheduledCount") })
+                AssistChip(onClick = {}, label = { Text("${scheduled.size}") })
             }
 
             if (scheduled.isEmpty()) {
@@ -81,7 +117,6 @@ fun NotificationScreen(
                         NotificationRow(
                             todo = todo,
                             onToggle = {
-                                // [수정] 스위치 토글 시 Firebase 업데이트
                                 scope.launch {
                                     val updatedTodo = todo.copy(remind = !todo.remind)
                                     repository.updateTodo(updatedTodo.toFirestoreTodo())
@@ -99,7 +134,7 @@ fun NotificationScreen(
 }
 
 @Composable
-private fun SummaryCard(scheduledCount: Int, total: Int) {
+private fun SummaryCard(activeCount: Int, total: Int) {
     Card(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
@@ -127,7 +162,7 @@ private fun SummaryCard(scheduledCount: Int, total: Int) {
             }
             Spacer(Modifier.height(12.dp))
             Text(
-                "설정된 알림을 확인하세요",
+                "다가오는 알림을 확인하세요",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -136,13 +171,13 @@ private fun SummaryCard(scheduledCount: Int, total: Int) {
             Row(horizontalArrangement = Arrangement.spacedBy(32.dp)) {
                 Column {
                     Text(
-                        "예정된 알림",
+                        "활성 알림",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "$scheduledCount",
+                        "$activeCount",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
@@ -150,7 +185,7 @@ private fun SummaryCard(scheduledCount: Int, total: Int) {
                 }
                 Column {
                     Text(
-                        "전체 알림",
+                        "전체 할 일",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -172,26 +207,27 @@ private fun NotificationRow(
     todo: Todo,
     onToggle: () -> Unit
 ) {
+    val containerColor = if (todo.remind) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+
     Card(
         shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        colors = CardDefaults.cardColors(containerColor = containerColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (todo.remind) 2.dp else 0.dp)
     ) {
         Row(
             Modifier.fillMaxWidth().padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 아이콘 배지
             Surface(
-                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                color = if (todo.remind) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f) else Color.Gray.copy(alpha = 0.2f),
                 shape = MaterialTheme.shapes.large,
-                shadowElevation = 1.dp
+                shadowElevation = 0.dp
             ) {
                 Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
                     Icon(
                         Icons.Default.Alarm,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
+                        tint = if (todo.remind) MaterialTheme.colorScheme.primary else Color.Gray,
                         modifier = Modifier.size(24.dp)
                     )
                 }
@@ -202,7 +238,8 @@ private fun NotificationRow(
                 Text(
                     todo.title,
                     style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    color = if (todo.remind) MaterialTheme.colorScheme.onSurface else Color.Gray
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     AssistChip(
@@ -214,7 +251,6 @@ private fun NotificationRow(
                         )
                     )
 
-                    // 알림 시간 표시
                     if (todo.remindTime != null) {
                         AssistChip(
                             onClick = {},
@@ -225,7 +261,6 @@ private fun NotificationRow(
                             )
                         )
                     } else {
-                        // 시간이 없으면 날짜 표시
                         AssistChip(
                             onClick = {},
                             label = { Text(todo.due?.toString() ?: "미정", fontWeight = FontWeight.Medium) },
@@ -269,7 +304,7 @@ private fun EmptyNotifications() {
 }
 
 // ---------------------------------------------------------
-// [추가] 데이터 매퍼 (오류 방지용)
+// [추가] 데이터 매퍼
 // ---------------------------------------------------------
 private fun FirestoreTodo.toTodo(): Todo {
     val category = try {
